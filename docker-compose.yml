@@ -2,9 +2,7 @@ version: "3.8"
 
 services:
   app:
-    build: .
+    image: nginx:alpine
     restart: unless-stopped
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
+      - "3000:80"
