@@ -50,9 +50,9 @@ services:
       API_PREFIX: /api/v1
       DATABASE_URL: postgresql://isp_billing:${POSTGRES_PASSWORD:-isp_billing_password}@postgres:5432/isp_billing?schema=public
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_SECRET: ${JWT_SECRET:-changeme_generate_real_secret}
       JWT_EXPIRES_IN: 7d
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-too}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-changeme_generate_real_secret}
       JWT_REFRESH_EXPIRES_IN: 30d
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-}
@@ -66,7 +66,8 @@ services:
       AIRTEL_CLIENT_SECRET: ${AIRTEL_CLIENT_SECRET:-}
       AT_API_KEY: ${AT_API_KEY:-}
       AT_USERNAME: ${AT_USERNAME:-}
-      RADIUS_SECRET: ${RADIUS_SECRET}
+      RADIUS_SECRET: ${RADIUS_SECRET:-changeme_use_strong_secret}
+
       DEFAULT_CURRENCY: KES
       TAX_RATE: "0.16"
     ports:
