@@ -5,10 +5,12 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY .build-marker ./.build-marker
 
 RUN npm ci
 
 COPY . .
+
 RUN npx prisma generate
 RUN npx tsc --skipLibCheck || true
 

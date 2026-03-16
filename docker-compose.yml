@@ -37,6 +37,8 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-0}
     container_name: isp_billing_api
     restart: unless-stopped
     depends_on:
