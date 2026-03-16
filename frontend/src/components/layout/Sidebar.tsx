@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useAuth } from '@/lib/auth';
 
 interface NavItem {
   name: string;
@@ -168,6 +169,7 @@ interface TopBarProps {
 export function TopBar({ user, notifications = 0 }: TopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
+  const { logout } = useAuth();
 
   return (
     <div className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 lg:px-8">
@@ -217,9 +219,8 @@ export function TopBar({ user, notifications = 0 }: TopBarProps) {
               <hr className="my-1 border-gray-200 dark:border-gray-700" />
               <button
                 className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                onClick={() => {
-                  localStorage.clear();
-                  window.location.href = '/login';
+                onClick={async () => {
+                  await logout();
                 }}
               >
                 <LogOut className="h-4 w-4" /> Sign out
