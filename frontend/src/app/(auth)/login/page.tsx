@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +26,13 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      router.push('/customer/dashboard');
+      
+      // Redirect based on user role
+      if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
+        router.push('/customers');
+      } else {
+        router.push('/customer/dashboard');
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error.response?.data?.message || 'Invalid email or password');

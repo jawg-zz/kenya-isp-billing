@@ -9,14 +9,18 @@ export default function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.push('/login');
+      } else if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
+        router.push('/customers');
+      }
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, user, router]);
 
   if (isLoading) {
     return (
@@ -26,7 +30,7 @@ export default function CustomerLayout({
     );
   }
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || user?.role === 'ADMIN' || user?.role === 'SUPPORT') return null;
 
   return <>{children}</>;
 }

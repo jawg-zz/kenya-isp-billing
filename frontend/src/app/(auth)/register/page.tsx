@@ -26,7 +26,7 @@ export default function RegisterPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, user } = useAuth();
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +61,13 @@ export default function RegisterPage() {
         postalCode: form.postalCode || undefined,
       });
       toast.success('Registration successful!');
-      router.push('/dashboard');
+      
+      // Redirect based on user role
+      if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
+        router.push('/customers');
+      } else {
+        router.push('/customer/dashboard');
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error.response?.data?.message || 'Registration failed. Please try again.');

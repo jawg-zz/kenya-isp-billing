@@ -15,7 +15,7 @@ export default function RootPage() {
     if (!isAuthenticated) {
       router.replace('/login');
     } else if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
-      router.replace('/admin');
+      router.replace('/customers');
     } else {
       router.replace('/customer/dashboard');
     }
