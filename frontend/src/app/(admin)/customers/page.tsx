@@ -15,6 +15,42 @@ import { format } from 'date-fns';
 import { Users, Search, Plus, Eye, Phone, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
+interface Customer {
+  id: string;
+  accountNumber: string;
+  customerCode: string;
+  balance: number | string;
+  createdAt: string;
+  user?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    accountStatus: string;
+  };
+  subscriptions?: {
+    plan?: {
+      name: string;
+    };
+  }[];
+}
+
+interface CustomerStats {
+  totalCustomers: number;
+  activeCustomers: number;
+  suspendedCustomers: number;
+  newCustomers: number;
+}
+
+interface CustomerResponse {
+  customers: Customer[];
+  meta: {
+    total: number;
+    page: number;
+    totalPages: number;
+  };
+}
+
 function formatKES(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
@@ -28,27 +64,27 @@ export default function AdminCustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['admin-customers', { page, search, status: statusFilter }],
     queryFn: async () => {
       const res = await api.getCustomers({ page, limit: 15, search: search || undefined, status: statusFilter || undefined });
-      return res.data;
+      return res.data as CustomerResponse;
     },
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, error: statsError } = useQuery({
     queryKey: ['customer-stats'],
     queryFn: async () => {
       const res = await api.getCustomerStats();
-      return res.data;
+      return res.data as CustomerStats;
     },
   });
 
   if (!user) return null;
 
-  const customers = (data as { customers?: Record<string, unknown>[] })?.customers || [];
-  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta as any || { total: 0, page: 1, totalPages: 1 };
-  const s = stats as Record<string, unknown> | undefined;
+  const customers = data?.customers || [];
+  const meta = data?.meta || { total: 0, page: 1, totalPages: 1 };
+  const s = stats;
 
   return (
     <MainLayout user={user}>
@@ -66,24 +102,30 @@ export default function AdminCustomersPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card>
-            <p className="text-sm text-gray-500">Total</p>
-            <p className="text-2xl font-bold">{(s?.totalCustomers as number) || 0}</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-gray-500">Active</p>
-            <p className="text-2xl font-bold text-green-600">{(s?.activeCustomers as number) || 0}</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-gray-500">Suspended</p>
-            <p className="text-2xl font-bold text-yellow-600">{(s?.suspendedCustomers as number) || 0}</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-gray-500">New (30d)</p>
-            <p className="text-2xl font-bold text-blue-600">{(s?.newCustomers as number) || 0}</p>
-          </Card>
-        </div>
+        {statsError ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            Failed to load customer statistics
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card>
+              <p className="text-sm text-gray-500">Total</p>
+              <p className="text-2xl font-bold">{s?.totalCustomers || 0}</p>
+            </Card>
+            <Card>
+              <p className="text-sm text-gray-500">Active</p>
+              <p className="text-2xl font-bold text-green-600">{s?.activeCustomers || 0}</p>
+            </Card>
+            <Card>
+              <p className="text-sm text-gray-500">Suspended</p>
+              <p className="text-2xl font-bold text-yellow-600">{s?.suspendedCustomers || 0}</p>
+            </Card>
+            <Card>
+              <p className="text-sm text-gray-500">New (30d)</p>
+              <p className="text-2xl font-bold text-blue-600">{s?.newCustomers || 0}</p>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card>
@@ -112,6 +154,12 @@ export default function AdminCustomersPage() {
           </div>
         </Card>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            Failed to load customers. Please try again.
+          </div>
+        )}
+
         {/* Customer Table */}
         <Card padding="none">
           {isLoading ? (
@@ -127,22 +175,22 @@ export default function AdminCustomersPage() {
             <>
               {/* Mobile */}
               <div className="block lg:hidden p-4 space-y-3">
-                {customers.map((customer: Record<string, unknown>) => {
-                  const u = customer.user as Record<string, unknown> | undefined;
-                  const activeSub = (customer.subscriptions as Record<string, unknown>[])?.[0];
+                {customers.map((customer) => {
+                  const u = customer.user;
+                  const activeSub = customer.subscriptions?.[0];
                   return (
-                    <Link key={customer.id as string} href={`/admin/customers/${customer.id as string}`}>
+                    <Link key={customer.id} href={`/admin/customers/${customer.id}`}>
                       <div className="border rounded-lg p-4 hover:bg-gray-50">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="font-medium">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
-                            <p className="text-sm text-gray-500">{customer.accountNumber as string}</p>
+                            <p className="text-sm text-gray-500">{customer.accountNumber}</p>
                           </div>
-                          <StatusBadge status={(u?.accountStatus as string) || 'UNKNOWN'} />
+                          <StatusBadge status={u?.accountStatus || 'UNKNOWN'} />
                         </div>
                         <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                          <span>{u?.phone as string || '—'}</span>
-                          <span>{activeSub?.plan ? (activeSub.plan as Record<string, unknown>).name as string : 'No plan'}</span>
+                          <span>{u?.phone || '—'}</span>
+                          <span>{activeSub?.plan ? activeSub.plan.name : 'No plan'}</span>
                         </div>
                         <div className="mt-1 text-sm">
                           Balance: <span className="font-medium">{formatKES(Number(customer.balance))}</span>
@@ -168,42 +216,42 @@ export default function AdminCustomersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {customers.map((customer: Record<string, unknown>) => {
-                      const u = customer.user as Record<string, unknown> | undefined;
-                      const activeSub = (customer.subscriptions as Record<string, unknown>[])?.[0];
+                    {customers.map((customer) => {
+                      const u = customer.user;
+                      const activeSub = customer.subscriptions?.[0];
                       return (
-                        <TableRow key={customer.id as string}>
+                        <TableRow key={customer.id}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
                                 <span className="text-xs font-medium text-primary-700">
-                                  {u ? `${(u.firstName as string)?.[0]}${(u.lastName as string)?.[0]}` : '??'}
+                                  {u ? `${u.firstName[0]}${u.lastName[0]}` : '??'}
                                 </span>
                               </div>
                               <div>
                                 <p className="font-medium">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
-                                <p className="text-xs text-gray-500">{u?.email as string}</p>
+                                <p className="text-xs text-gray-500">{u?.email || ''}</p>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <p className="font-mono text-sm">{customer.accountNumber as string}</p>
-                            <p className="text-xs text-gray-500">{customer.customerCode as string}</p>
+                            <p className="font-mono text-sm">{customer.accountNumber}</p>
+                            <p className="text-xs text-gray-500">{customer.customerCode}</p>
                           </TableCell>
                           <TableCell>
-                            {activeSub ? (
-                              <span className="text-sm">{(activeSub.plan as Record<string, unknown>)?.name as string}</span>
+                            {activeSub?.plan ? (
+                              <span className="text-sm">{activeSub.plan.name}</span>
                             ) : (
                               <span className="text-sm text-gray-400">None</span>
                             )}
                           </TableCell>
                           <TableCell className="font-medium">{formatKES(Number(customer.balance))}</TableCell>
-                          <TableCell><StatusBadge status={(u?.accountStatus as string) || 'UNKNOWN'} /></TableCell>
+                          <TableCell><StatusBadge status={u?.accountStatus || 'UNKNOWN'} /></TableCell>
                           <TableCell className="text-sm text-gray-500">
-                            {format(new Date(customer.createdAt as string), 'MMM d, yyyy')}
+                            {format(new Date(customer.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Link href={`/admin/customers/${customer.id as string}`}>
+                            <Link href={`/admin/customers/${customer.id}`}>
                               <Button size="sm" variant="ghost">
                                 <Eye className="h-4 w-4" />
                               </Button>
