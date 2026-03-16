@@ -46,7 +46,7 @@ export default function AdminCustomersPage() {
   if (!user) return null;
 
   const customers = (data as { customers?: Record<string, unknown>[] })?.customers || [];
-  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
+  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta as any || { total: 0, page: 1, totalPages: 1 };
   const s = stats as Record<string, unknown> | undefined;
 
   return (
