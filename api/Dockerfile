@@ -5,12 +5,13 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
-COPY .build-marker ./.build-marker
 
 RUN npm ci
 
-COPY . .
+# Cache bust marker - force rebuild on change
+# BUILD_TIMESTAMP: 1742128520
 
+COPY . .
 RUN npx prisma generate
 RUN npx tsc --skipLibCheck || true
 
