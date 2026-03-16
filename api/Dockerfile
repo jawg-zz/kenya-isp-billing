@@ -9,7 +9,7 @@ COPY prisma ./prisma/
 RUN npm ci
 
 # Cache bust marker - force rebuild on change
-# BUILD_TIMESTAMP: 1742129700
+# BUILD_TIMESTAMP: 1742130000
 
 COPY . .
 RUN npx prisma generate

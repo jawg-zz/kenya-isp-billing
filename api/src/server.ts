@@ -82,24 +82,27 @@ app.use(`${config.apiPrefix}/audit`, auditRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server
+// Start server immediately, connect to services in background
 const startServer = async () => {
+  app.listen(config.port, () => {
+    logger.info(`Server running on port ${config.port} in ${config.env} mode`);
+    logger.info(`API available at http://localhost:${config.port}${config.apiPrefix}`);
+  });
+
+  // Connect to database (non-blocking)
   try {
-    // Test database connection
     await prisma.$connect();
     logger.info('Database connected successfully');
+  } catch (error) {
+    logger.error('Database connection failed (will retry):', error);
+  }
 
-    // Test Redis connection
+  // Connect to Redis (non-blocking)
+  try {
     await RedisClient.getInstance().ping();
     logger.info('Redis connected successfully');
-
-    app.listen(config.port, () => {
-      logger.info(`Server running on port ${config.port} in ${config.env} mode`);
-      logger.info(`API available at http://localhost:${config.port}${config.apiPrefix}`);
-    });
   } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
+    logger.error('Redis connection failed (will retry):', error);
   }
 };
 
