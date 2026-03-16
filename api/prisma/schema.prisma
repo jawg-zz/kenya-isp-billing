@@ -460,5 +460,3 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// Decimal support for Prisma
-type Decimal = Decimal
