@@ -9,7 +9,7 @@ COPY prisma ./prisma/
 RUN npm ci
 
 # Cache bust marker - force rebuild on change
-# BUILD_TIMESTAMP: 1742130300
+# BUILD_TIMESTAMP: 1742130600
 
 COPY . .
 RUN npx prisma generate
@@ -35,10 +35,8 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY entrypoint.sh ./entrypoint.sh
 
 RUN chmod +x entrypoint.sh && \
-    apk add --no-cache postgresql-client && \
-    mkdir -p uploads logs && chown -R nextjs:nodejs uploads logs
-
-USER nextjs
+    apk add --no-cache postgresql-client openssl1.1-compat && \
+    mkdir -p uploads logs
 
 EXPOSE 3000
 
