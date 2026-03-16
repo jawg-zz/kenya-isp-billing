@@ -83,14 +83,62 @@ export const config = {
 };
 
 // Validate required environment variables
-export const validateConfig = (): void => {
-  const required = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
-  const missing = required.filter((key) => !process.env[key]);
+export const validateConfig = (): boolean => {
+  // Required core variables
+  const required: Record<string, string> = {
+    DATABASE_URL: 'PostgreSQL database connection string',
+    JWT_SECRET: 'Secret for signing JWT access tokens',
+    JWT_REFRESH_SECRET: 'Secret for signing JWT refresh tokens',
+    RADIUS_SECRET: 'Shared secret for RADIUS authentication',
+  };
+
+  // Optional but recommended variables (warnings only)
+  const recommended: Record<string, string> = {
+    MPESA_CONSUMER_KEY: 'M-Pesa API consumer key (Safaricom Daraja)',
+    MPESA_CONSUMER_SECRET: 'M-Pesa API consumer secret',
+    MPESA_PASSKEY: 'M-Pesa API passkey for STK Push',
+    MPESA_CALLBACK_URL: 'M-Pesa payment callback URL',
+    AT_API_KEY: 'Africa\'s Talking SMS API key',
+    AT_USERNAME: 'Africa\'s Talking SMS username',
+  };
+
+  const missing: string[] = [];
+  const missingDetails: string[] = [];
+
+  for (const [key, description] of Object.entries(required)) {
+    if (!process.env[key]) {
+      missing.push(key);
+      missingDetails.push(`  - ${key}: ${description}`);
+    }
+  }
 
   if (missing.length > 0) {
-    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    console.error('\n❌ Missing required environment variables:');
+    missingDetails.forEach((d) => console.error(d));
+    console.error('\nPlease set these in your .env file or environment.\n');
     process.exit(1);
   }
+
+  // Warn about missing optional but recommended variables
+  const warnings: string[] = [];
+  for (const [key, description] of Object.entries(recommended)) {
+    if (!process.env[key]) {
+      warnings.push(`  ⚠️  ${key}: ${description}`);
+    }
+  }
+
+  if (warnings.length > 0 && config.env !== 'test') {
+    console.warn('\n⚠️  Optional configuration missing (features may be limited):');
+    warnings.forEach((w) => console.warn(w));
+    console.warn('');
+  }
+
+  return true;
 };
+
+// Auto-validate on import in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  validateConfig();
+}
 
 export default config;

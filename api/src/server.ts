@@ -20,6 +20,7 @@ import invoiceRoutes from './routes/invoice.routes';
 import usageRoutes from './routes/usage.routes';
 import customerRoutes from './routes/customer.routes';
 import radiusRoutes from './routes/radius.routes';
+import healthRoutes from './routes/health.routes';
 
 const app = express();
 
@@ -55,7 +56,7 @@ app.use(rateLimiter);
 // Input sanitization
 app.use(sanitize);
 
-// Health check
+// Health check endpoints (legacy simple endpoint + detailed routes)
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
@@ -63,6 +64,7 @@ app.get('/health', (_req, res) => {
     environment: config.env,
   });
 });
+app.use('/health', healthRoutes);
 
 // API routes
 app.use(`${config.apiPrefix}/auth`, authRoutes);
