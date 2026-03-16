@@ -5,6 +5,7 @@ import { prisma } from '../config/database';
 import config from '../config';
 import { cache } from '../config/redis';
 import { logger } from '../config/logger';
+import { smsService } from './sms.service';
 import {
   UnauthorizedError,
   ConflictError,
@@ -282,7 +283,22 @@ class AuthService {
     // Store in cache with 1 hour expiry
     await cache.set(`passwordReset:${hashedToken}`, user.id, 3600);
 
-    // TODO: Send email with reset token
+    // Send SMS with reset token
+    try {
+      const smsResult = await smsService.send({
+        to: user.phone,
+        message: `Your ISP password reset code: ${resetToken}. Valid for 1 hour.`,
+      });
+
+      if (smsResult.success) {
+        logger.info(`Password reset SMS sent to: ${user.phone}`);
+      } else {
+        logger.error(`Failed to send password reset SMS to: ${user.phone}`, smsResult.error);
+      }
+    } catch (error) {
+      logger.error(`Error sending password reset SMS to: ${user.phone}`, error);
+    }
+
     logger.info(`Password reset requested for: ${email}`);
   }
 

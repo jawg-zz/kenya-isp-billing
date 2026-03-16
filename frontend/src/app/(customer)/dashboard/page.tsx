@@ -217,7 +217,7 @@ export default function CustomerDashboard() {
               <Wifi className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900">No Active Plan</h3>
               <p className="mt-1 text-gray-500">Subscribe to a plan to get started</p>
-              <Link href="/plans">
+              <Link href="/subscribe">
                 <Button className="mt-4">Browse Plans</Button>
               </Link>
             </div>

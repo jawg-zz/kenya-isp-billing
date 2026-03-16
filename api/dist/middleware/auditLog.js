@@ -1,0 +1,116 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AuditActions = void 0;
+exports.auditLog = auditLog;
+exports.logAuditAction = logAuditAction;
+const database_1 = require("../config/database");
+const logger_1 = require("../config/logger");
+/**
+ * Audit log middleware for tracking admin actions
+ */
+function auditLog(entry) {
+    return async (req, res, next) => {
+        const originalEnd = res.end;
+        // Capture response to determine success/failure
+        res.end = function (...args) {
+            const statusCode = res.statusCode;
+            const success = statusCode >= 200 && statusCode < 400;
+            // Only log successful admin actions
+            if (success && req.user) {
+                const logEntry = {
+                    userId: req.user.id,
+                    action: entry.action || req.method,
+                    entityType: entry.entityType || req.path,
+                    entityId: entry.resourceId || req.params?.id,
+                    newValues: {
+                        ...entry.newValues,
+                        statusCode,
+                        query: req.query,
+                    },
+                    ipAddress: req.ip || req.socket.remoteAddress,
+                    userAgent: req.get('user-agent'),
+                };
+                // Don't await - fire and forget
+                createAuditLog(logEntry).catch((err) => {
+                    logger_1.logger.error('Failed to create audit log:', err);
+                });
+            }
+            // Call original end
+            return originalEnd.apply(res, args);
+        };
+        next();
+    };
+}
+/**
+ * Create an audit log entry in the database
+ */
+async function createAuditLog(entry) {
+    try {
+        await database_1.prisma.auditLog.create({
+            data: {
+                userId: entry.userId,
+                action: entry.action,
+                entityType: entry.entityType,
+                entityId: entry.entityId,
+                oldValues: entry.oldValues ? JSON.stringify(entry.oldValues) : undefined,
+                newValues: entry.newValues ? JSON.stringify(entry.newValues) : undefined,
+                ipAddress: entry.ipAddress,
+                userAgent: entry.userAgent,
+            },
+        });
+    }
+    catch (error) {
+        // If something fails, just log to file
+        logger_1.logger.warn('Audit log entry (db error):', entry);
+    }
+}
+/**
+ * Helper to create audit log entries manually
+ */
+async function logAuditAction(userId, action, entityType, options) {
+    await createAuditLog({
+        userId,
+        action,
+        entityType,
+        entityId: options?.entityId,
+        oldValues: options?.oldValues,
+        newValues: options?.newValues,
+        ipAddress: options?.ipAddress,
+        userAgent: options?.userAgent,
+    });
+}
+/**
+ * Audit actions enum for common admin operations
+ */
+exports.AuditActions = {
+    // User management
+    USER_CREATE: 'USER_CREATE',
+    USER_UPDATE: 'USER_UPDATE',
+    USER_DELETE: 'USER_DELETE',
+    USER_SUSPEND: 'USER_SUSPEND',
+    USER_ACTIVATE: 'USER_ACTIVATE',
+    // Plan management
+    PLAN_CREATE: 'PLAN_CREATE',
+    PLAN_UPDATE: 'PLAN_UPDATE',
+    PLAN_DELETE: 'PLAN_DELETE',
+    // Invoice management
+    INVOICE_CREATE: 'INVOICE_CREATE',
+    INVOICE_UPDATE: 'INVOICE_UPDATE',
+    INVOICE_VOID: 'INVOICE_VOID',
+    INVOICE_SEND: 'INVOICE_SEND',
+    // Payment management
+    PAYMENT_REFUND: 'PAYMENT_REFUND',
+    PAYMENT_ADJUST: 'PAYMENT_ADJUST',
+    // Subscription management
+    SUBSCRIPTION_CREATE: 'SUBSCRIPTION_CREATE',
+    SUBSCRIPTION_CANCEL: 'SUBSCRIPTION_CANCEL',
+    SUBSCRIPTION_SUSPEND: 'SUBSCRIPTION_SUSPEND',
+    // Settings
+    SETTINGS_UPDATE: 'SETTINGS_UPDATE',
+    // Auth
+    LOGIN: 'LOGIN',
+    LOGOUT: 'LOGOUT',
+    PASSWORD_RESET: 'PASSWORD_RESET',
+    PASSWORD_CHANGE: 'PASSWORD_CHANGE',
+};
+//# sourceMappingURL=auditLog.js.map

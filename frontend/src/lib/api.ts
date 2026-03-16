@@ -387,6 +387,27 @@ class ApiClient {
     const { data } = await this.client.get<ApiResponse<{ subscriptions: Record<string, unknown>[]; meta: Record<string, unknown> }>>('/subscriptions/admin/all', { params });
     return data;
   }
+
+  // RADIUS (Admin)
+  async getRadiusSessions(params?: { status?: string; page?: number; limit?: number }) {
+    const { data } = await this.client.get<ApiResponse<{ sessions: Record<string, unknown>[]; meta: Record<string, unknown> }>>('/radius/sessions', { params });
+    return data;
+  }
+
+  async getRadiusSessionStats() {
+    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/radius/sessions/stats');
+    return data;
+  }
+
+  async getRadiusEvents(params?: { limit?: number }) {
+    const { data } = await this.client.get<ApiResponse<{ events: Record<string, unknown>[] }>>('/radius/sessions/events', { params });
+    return data;
+  }
+
+  async getHealthDetailed() {
+    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/health/detailed');
+    return data;
+  }
 }
 
 export const api = new ApiClient();
