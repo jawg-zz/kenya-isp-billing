@@ -15,6 +15,8 @@ RUN npm run build
 # Stage 2: Production
 FROM node:20-alpine AS runner
 
+RUN apk add --no-cache nginx
+
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -27,11 +29,46 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-USER nextjs
+# Nginx config - proxies /api/ to API, serves frontend on 3000
+COPY <<'EOF' /etc/nginx/nginx.conf
+worker_processes auto;
+events { worker_connections 1024; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    upstream nextjs { server 127.0.0.1:3001; }
+    upstream api { server api:3000; }
+    server {
+        listen 3000;
+        client_max_body_size 20M;
+        location /api/ {
+            proxy_pass http://api;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+        location / {
+            proxy_pass http://nextjs;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+}
+EOF
+
+# Startup script: run Next.js on 3001, nginx on 3000
+COPY <<'EOF' /app/start.sh
+#!/bin/sh
+PORT=3001 HOSTNAME="0.0.0.0" node /app/server.js &
+nginx -g 'daemon off;'
+EOF
+RUN chmod +x /app/start.sh
 
 EXPOSE 3000
 
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
+CMD ["/app/start.sh"]
