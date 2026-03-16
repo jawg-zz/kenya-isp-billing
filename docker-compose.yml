@@ -95,20 +95,6 @@ services:
     expose:
       - "3000"
 
-  seed:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: isp_billing_seed
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://isp_billing:${POSTGRES_PASSWORD:-isp_billing_password}@postgres:5432/isp_billing?schema=public
-    command: npx tsx src/utils/seed.ts
-    profiles:
-      - seed
-
   nginx:
     image: nginx:alpine
     container_name: isp_billing_nginx

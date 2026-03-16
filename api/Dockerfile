@@ -29,11 +29,14 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY entrypoint.sh ./entrypoint.sh
 
-RUN mkdir -p uploads logs && chown -R nextjs:nodejs uploads logs
+RUN chmod +x entrypoint.sh && \
+    apk add --no-cache postgresql-client && \
+    mkdir -p uploads logs && chown -R nextjs:nodejs uploads logs
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+ENTRYPOINT ["sh", "entrypoint.sh"]
