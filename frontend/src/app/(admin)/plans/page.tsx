@@ -28,11 +28,34 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+interface Plan {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  type: 'PREPAID' | 'POSTPAID';
+  dataType: 'DATA' | 'VOICE' | 'SMS' | 'BUNDLE';
+  price: number;
+  speedLimit?: number;
+  dataAllowance?: number;
+  validityDays: number;
+  fupThreshold?: number;
+  fupSpeedLimit?: number;
+  isFeatured: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PlansResponse {
+  plans: Plan[];
+}
+
 export default function AdminPlansPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<Record<string, unknown> | null>(null);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [form, setForm] = useState({
     name: '',
     code: '',
@@ -48,11 +71,11 @@ export default function AdminPlansPage() {
     isFeatured: false,
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['admin-plans'],
     queryFn: async () => {
       const res = await api.getPlans();
-      return res.data;
+      return res.data as PlansResponse;
     },
   });
 
@@ -111,21 +134,21 @@ export default function AdminPlansPage() {
     });
   };
 
-  const handleEdit = (plan: Record<string, unknown>) => {
+  const handleEdit = (plan: Plan) => {
     setEditingPlan(plan);
     setForm({
-      name: plan.name as string || '',
-      code: plan.code as string || '',
-      description: (plan.description as string) || '',
-      type: plan.type as string || 'PREPAID',
-      dataType: plan.dataType as string || 'DATA',
+      name: plan.name || '',
+      code: plan.code || '',
+      description: plan.description || '',
+      type: plan.type || 'PREPAID',
+      dataType: plan.dataType || 'DATA',
       price: String(plan.price || ''),
       speedLimit: plan.speedLimit ? String(plan.speedLimit) : '',
       dataAllowance: plan.dataAllowance ? String(Number(plan.dataAllowance) / (1024 * 1024)) : '',
       validityDays: String(plan.validityDays || 30),
       fupThreshold: plan.fupThreshold ? String(Number(plan.fupThreshold) / (1024 * 1024)) : '',
       fupSpeedLimit: plan.fupSpeedLimit ? String(plan.fupSpeedLimit) : '',
-      isFeatured: (plan.isFeatured as boolean) || false,
+      isFeatured: plan.isFeatured || false,
     });
     setShowForm(true);
   };
@@ -143,7 +166,7 @@ export default function AdminPlansPage() {
     };
 
     if (editingPlan) {
-      updateMutation.mutate({ id: editingPlan.id as string, payload });
+      updateMutation.mutate({ id: editingPlan.id, payload });
     } else {
       createMutation.mutate(payload);
     }
@@ -151,7 +174,7 @@ export default function AdminPlansPage() {
 
   if (!user) return null;
 
-  const plans = (data as { plans?: Record<string, unknown>[] })?.plans || [];
+  const plans = data?.plans || [];
 
   return (
     <MainLayout user={user}>
@@ -165,6 +188,11 @@ export default function AdminPlansPage() {
             <Plus className="h-4 w-4 mr-2" /> New Plan
           </Button>
         </div>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            Failed to load plans. Please try again.
+          </div>
+        )}
 
         {/* Plan Form Modal */}
         {showForm && (
@@ -241,19 +269,19 @@ export default function AdminPlansPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {plans.map((plan: Record<string, unknown>) => (
-              <Card key={plan.id as string} className="relative">
+            {plans.map((plan) => (
+              <Card key={plan.id} className="relative">
                 {plan.isFeatured && (
                   <Badge variant="info" className="absolute top-3 right-3">Featured</Badge>
                 )}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Package className="h-5 w-5 text-primary-600" />
-                    <h3 className="text-lg font-semibold">{plan.name as string}</h3>
+                    <h3 className="text-lg font-semibold">{plan.name}</h3>
                   </div>
 
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-primary-600">{formatKES(Number(plan.price))}</span>
+                    <span className="text-3xl font-bold text-primary-600">{formatKES(plan.price)}</span>
                     <span className="text-sm text-gray-500">
                       /{plan.type === 'PREPAID' ? `${plan.validityDays}d` : 'mo'}
                     </span>
@@ -266,11 +294,11 @@ export default function AdminPlansPage() {
                     </div>
                     <div className="flex justify-between">
                       <span>Data</span>
-                      <span className="font-medium">{plan.dataAllowance ? formatBytes(Number(plan.dataAllowance)) : 'Unlimited'}</span>
+                      <span className="font-medium">{plan.dataAllowance ? formatBytes(plan.dataAllowance) : 'Unlimited'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Type</span>
-                      <span className="font-medium">{plan.type as string}</span>
+                      <span className="font-medium">{plan.type}</span>
                     </div>
                   </div>
 
@@ -283,7 +311,7 @@ export default function AdminPlansPage() {
                       variant="ghost"
                       onClick={() => {
                         if (confirm('Deactivate this plan?')) {
-                          deleteMutation.mutate(plan.id as string);
+                          deleteMutation.mutate(plan.id);
                         }
                       }}
                     >
