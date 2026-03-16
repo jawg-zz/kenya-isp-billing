@@ -188,6 +188,16 @@ class ApiClient {
     return data;
   }
 
+  async forgotPassword(email: string) {
+    const { data } = await this.client.post<ApiResponse>('/auth/forgot-password', { email });
+    return data;
+  }
+
+  async resetPassword(token: string, password: string) {
+    const { data } = await this.client.post<ApiResponse>('/auth/reset-password', { token, password });
+    return data;
+  }
+
   // Plans
   async getPlans(params?: { type?: string; dataType?: string }) {
     const { data } = await this.client.get<ApiResponse<{ plans: Record<string, unknown>[] }>>('/plans', { params });
