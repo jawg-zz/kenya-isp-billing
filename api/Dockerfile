@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.19 AS builder
 
 WORKDIR /app
 
@@ -9,14 +9,14 @@ COPY prisma ./prisma/
 RUN npm ci
 
 # Cache bust marker - force rebuild on change
-# BUILD_TIMESTAMP: 1742130600
+# BUILD_TIMESTAMP: 1742130900
 
 COPY . .
 RUN npx prisma generate
 RUN npx tsc --skipLibCheck || true
 
 # Stage 2: Production
-FROM node:20-alpine AS runner
+FROM node:20-alpine3.19 AS runner
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY entrypoint.sh ./entrypoint.sh
 
 RUN chmod +x entrypoint.sh && \
-    apk add --no-cache postgresql-client openssl1.1-compat && \
+    apk add --no-cache postgresql-client && \
     mkdir -p uploads logs
 
 EXPOSE 3000
