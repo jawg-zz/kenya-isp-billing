@@ -130,7 +130,6 @@ model User {
 
   // Relations
   customer          Customer?
-  subscriptions     Subscription[]
   payments          Payment[]
   notifications     Notification[]
   sessions          RadiusSession[]
