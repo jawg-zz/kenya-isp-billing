@@ -33,7 +33,8 @@
     "uuid": "^11.0.3",
     "winston": "^3.17.0",
     "xml2js": "^0.6.2",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -48,8 +49,10 @@
     "@types/xml2js": "^0.4.14",
     "eslint": "^9.16.0",
     "prisma": "^5.22.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "prisma": {
+    "seed": "tsx src/utils/seed.ts"
   }
 }
