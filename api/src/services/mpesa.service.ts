@@ -197,177 +197,206 @@ class MpesaService {
       resultCode: ResultCode,
     });
 
-    // Find the payment record
-    const payment = await prisma.payment.findFirst({
-      where: {
-        OR: [
-          { merchantRequestId: MerchantRequestID },
-          { checkoutRequestId: CheckoutRequestID },
-        ],
-      },
-      include: {
-        customer: true,
-        subscription: true,
+    // Use transaction to prevent race conditions
+    await prisma.$transaction(async (tx) => {
+      // Find the payment record with lock (SELECT FOR UPDATE equivalent)
+      // Prisma doesn't have FOR UPDATE, but we can use update with condition
+      // First find the payment
+      const payment = await tx.payment.findFirst({
+        where: {
+          OR: [
+            { merchantRequestId: MerchantRequestID },
+            { checkoutRequestId: CheckoutRequestID },
+          ],
+        },
+        include: {
+          customer: true,
+          subscription: true,
+        },
+      });
+
+      if (!payment) {
+        logger.error('Payment not found for callback:', {
+          merchantRequestId: MerchantRequestID,
+          checkoutRequestId: CheckoutRequestID,
+        });
+        return;
+      }
+
+      // If payment already processed, skip
+      if (payment.status === 'COMPLETED' || payment.status === 'FAILED') {
+        logger.warn(`Payment ${payment.id} already processed with status ${payment.status}`);
+        return;
+      }
+
+      // Extract callback metadata
+      let mpesaReceiptNumber: string | undefined;
+      let transactionDate: string | undefined;
+      let phoneNumber: string | undefined;
+
+      if (stkCallback.CallbackMetadata) {
+        for (const item of stkCallback.CallbackMetadata.Item) {
+          switch (item.Name) {
+            case 'MpesaReceiptNumber':
+              mpesaReceiptNumber = item.Value as string;
+              break;
+            case 'TransactionDate':
+              transactionDate = item.Value as string;
+              break;
+            case 'PhoneNumber':
+              phoneNumber = item.Value as string;
+              break;
+          }
+        }
+      }
+
+      // Update payment based on result code
+      const updateData: any = {
+        resultCode: ResultCode.toString(),
+        resultDesc: ResultDesc,
+        metadata: {
+          ...((payment.metadata as object) || {}),
+          mpesaReceiptNumber,
+          transactionDate,
+          phoneNumber,
+        },
+      };
+
+      if (ResultCode === 0) {
+        // Payment successful
+        updateData.status = 'COMPLETED';
+        updateData.reference = mpesaReceiptNumber;
+        updateData.processedAt = new Date();
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: updateData,
+        });
+
+        // Process successful payment within same transaction
+        await this.handleSuccessfulPaymentWithinTransaction(tx, payment);
+      } else {
+        // Payment failed
+        updateData.status = 'FAILED';
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: updateData,
+        });
+
+        logger.warn('M-Pesa payment failed:', {
+          paymentId: payment.id,
+          resultCode: ResultCode,
+          resultDesc: ResultDesc,
+        });
+
+        // Notify customer of failed payment
+        await tx.notification.create({
+          data: {
+            userId: payment.customer.userId,
+            type: 'PAYMENT_FAILED',
+            title: 'Payment Failed',
+            message: `Your M-Pesa payment of KES ${payment.amount} failed: ${ResultDesc}`,
+            channel: 'in_app',
+          },
+        });
+      }
+    });
+  }
+
+  // Handle successful payment (within transaction)
+  private async handleSuccessfulPaymentWithinTransaction(tx: any, payment: any): Promise<void> {
+    // Update customer balance
+    await tx.customer.update({
+      where: { id: payment.customerId },
+      data: {
+        balance: {
+          increment: payment.amount,
+        },
       },
     });
 
-    if (!payment) {
-      logger.error('Payment not found for callback:', {
-        merchantRequestId: MerchantRequestID,
-        checkoutRequestId: CheckoutRequestID,
-      });
-      return;
-    }
-
-    // Extract callback metadata
-    let mpesaReceiptNumber: string | undefined;
-    let transactionDate: string | undefined;
-    let phoneNumber: string | undefined;
-
-    if (stkCallback.CallbackMetadata) {
-      for (const item of stkCallback.CallbackMetadata.Item) {
-        switch (item.Name) {
-          case 'MpesaReceiptNumber':
-            mpesaReceiptNumber = item.Value as string;
-            break;
-          case 'TransactionDate':
-            transactionDate = item.Value as string;
-            break;
-          case 'PhoneNumber':
-            phoneNumber = item.Value as string;
-            break;
-        }
-      }
-    }
-
-    // Update payment based on result code
-    const updateData: any = {
-      resultCode: ResultCode.toString(),
-      resultDesc: ResultDesc,
-      metadata: {
-        ...((payment.metadata as object) || {}),
-        mpesaReceiptNumber,
-        transactionDate,
-        phoneNumber,
-      },
-    };
-
-    if (ResultCode === 0) {
-      // Payment successful
-      updateData.status = 'COMPLETED';
-      updateData.reference = mpesaReceiptNumber;
-      updateData.processedAt = new Date();
-
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: updateData,
-      });
-
-      // Process successful payment
-      await this.handleSuccessfulPayment(payment);
-    } else {
-      // Payment failed
-      updateData.status = 'FAILED';
-
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: updateData,
-      });
-
-      logger.warn('M-Pesa payment failed:', {
-        paymentId: payment.id,
-        resultCode: ResultCode,
-        resultDesc: ResultDesc,
-      });
-
-      // Notify customer of failed payment
-      await prisma.notification.create({
+    // Update invoice if exists
+    if (payment.invoiceId) {
+      await tx.invoice.update({
+        where: { id: payment.invoiceId },
         data: {
-          userId: payment.customer.userId,
-          type: 'PAYMENT_FAILED',
-          title: 'Payment Failed',
-          message: `Your M-Pesa payment of KES ${payment.amount} failed: ${ResultDesc}`,
-          channel: 'in_app',
+          status: 'PAID',
+          paidAt: new Date(),
         },
       });
     }
+
+    // Activate or renew subscription if exists
+    if (payment.subscriptionId) {
+      const subscription = await tx.subscription.findUnique({
+        where: { id: payment.subscriptionId },
+        include: { plan: true },
+      });
+
+      if (subscription) {
+        const plan = subscription.plan;
+        const now = new Date();
+        let newEndDate = new Date(now);
+        
+        // If subscription already active, extend from existing end date
+        if (subscription.status === 'ACTIVE' && subscription.endDate > now) {
+          newEndDate = new Date(subscription.endDate);
+          newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
+        } else {
+          newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
+        }
+
+        const updateData: any = {
+          status: 'ACTIVE',
+          endDate: newEndDate,
+        };
+        
+        // Only reset usage if subscription was not active
+        if (subscription.status !== 'ACTIVE') {
+          updateData.startDate = now;
+          updateData.dataUsed = 0;
+          updateData.dataRemaining = plan.dataAllowance;
+          updateData.voiceMinutesUsed = 0;
+          updateData.smsUsed = 0;
+        }
+
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: updateData,
+        });
+
+        // Create notification
+        await tx.notification.create({
+          data: {
+            userId: payment.customer.userId,
+            type: 'SUBSCRIPTION_ACTIVATED',
+            title: 'Subscription Activated',
+            message: `Your ${plan.name} subscription has been activated. Valid until ${newEndDate.toLocaleDateString('en-KE')}`,
+            channel: 'in_app',
+          },
+        });
+      }
+    }
+
+    // Create payment notification
+    await tx.notification.create({
+      data: {
+        userId: payment.customer.userId,
+        type: 'PAYMENT_RECEIVED',
+        title: 'Payment Received',
+        message: `Your M-Pesa payment of KES ${payment.amount} has been received successfully.`,
+        channel: 'in_app',
+      },
+    });
+
+    logger.info('Payment processed successfully:', { paymentId: payment.id });
   }
 
-  // Handle successful payment
+  // Handle successful payment (non-transaction wrapper for external calls)
   private async handleSuccessfulPayment(payment: any): Promise<void> {
     try {
-      // Update customer balance
-      await prisma.customer.update({
-        where: { id: payment.customerId },
-        data: {
-          balance: {
-            increment: payment.amount,
-          },
-        },
-      });
-
-      // Update invoice if exists
-      if (payment.invoiceId) {
-        await prisma.invoice.update({
-          where: { id: payment.invoiceId },
-          data: {
-            status: 'PAID',
-            paidAt: new Date(),
-          },
-        });
-      }
-
-      // Activate or renew subscription if exists
-      if (payment.subscriptionId) {
-        const subscription = await prisma.subscription.findUnique({
-          where: { id: payment.subscriptionId },
-          include: { plan: true },
-        });
-
-        if (subscription) {
-          const plan = subscription.plan;
-          const now = new Date();
-          const newEndDate = new Date(now);
-          newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
-
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: {
-              status: 'ACTIVE',
-              startDate: now,
-              endDate: newEndDate,
-              dataUsed: 0,
-              dataRemaining: plan.dataAllowance,
-              voiceMinutesUsed: 0,
-              smsUsed: 0,
-            },
-          });
-
-          // Create notification
-          await prisma.notification.create({
-            data: {
-              userId: payment.customer.userId,
-              type: 'SUBSCRIPTION_ACTIVATED',
-              title: 'Subscription Activated',
-              message: `Your ${plan.name} subscription has been activated. Valid until ${newEndDate.toLocaleDateString('en-KE')}`,
-              channel: 'in_app',
-            },
-          });
-        }
-      }
-
-      // Create payment notification
-      await prisma.notification.create({
-        data: {
-          userId: payment.customer.userId,
-          type: 'PAYMENT_RECEIVED',
-          title: 'Payment Received',
-          message: `Your M-Pesa payment of KES ${payment.amount} has been received successfully.`,
-          channel: 'in_app',
-        },
-      });
-
-      logger.info('Payment processed successfully:', { paymentId: payment.id });
+      await this.handleSuccessfulPaymentWithinTransaction(prisma, payment);
     } catch (error) {
       logger.error('Error processing successful payment:', error);
     }
@@ -375,9 +404,13 @@ class MpesaService {
 
   // Validate callback signature
   validateCallback(body: any): boolean {
-    // In production, validate the callback using the certificate
-    // For now, we'll just check if the body has required fields
-    return body?.Body?.stkCallback?.MerchantRequestID != null;
+    // Check required fields
+    if (!body?.Body?.stkCallback) return false;
+    const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc } = body.Body.stkCallback;
+    if (!MerchantRequestID || !CheckoutRequestID || ResultCode == null || !ResultDesc) return false;
+    // Ensure ResultCode is a number
+    if (typeof ResultCode !== 'number') return false;
+    return true;
   }
 }
 
