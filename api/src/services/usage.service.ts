@@ -179,17 +179,17 @@ class UsageService {
 
     const totalOctets = data.inputOctets + data.outputOctets;
 
-    // Upsert daily usage record
+    // Upsert daily usage record (increment)
     await prisma.usageRecord.upsert({
       where: {
         id: `${data.subscriptionId}_${dateStr}`,
       },
       update: {
-        inputOctets: data.inputOctets,
-        outputOctets: data.outputOctets,
-        totalOctets,
-        inputPackets: data.inputPackets,
-        outputPackets: data.outputPackets,
+        inputOctets: { increment: data.inputOctets },
+        outputOctets: { increment: data.outputOctets },
+        totalOctets: { increment: totalOctets },
+        inputPackets: { increment: data.inputPackets },
+        outputPackets: { increment: data.outputPackets },
       },
       create: {
         id: `${data.subscriptionId}_${dateStr}`,
@@ -207,11 +207,11 @@ class UsageService {
       },
     });
 
-    // Update subscription usage
+    // Update subscription usage (increment)
     await prisma.subscription.update({
       where: { id: data.subscriptionId },
       data: {
-        dataUsed: totalOctets,
+        dataUsed: { increment: totalOctets },
       },
     });
 
@@ -236,12 +236,11 @@ class UsageService {
     const fupThreshold = Number(subscription.plan.fupThreshold);
     const dataUsed = Number(subscription.dataUsed);
 
-    // Check if FUP threshold just crossed
-    const previousUsage = dataUsed - Number(subscription.plan.dataAllowance || 0);
-    const wasAboveThreshold = previousUsage >= fupThreshold;
-    const isAboveThreshold = dataUsed >= fupThreshold;
+    // Check if FUP threshold reached (only notify once per billing period)
+    const thresholdReachedKey = `fup:reached:${subscriptionId}`;
+    const alreadyReached = await cache.get(thresholdReachedKey);
 
-    if (isAboveThreshold && !wasAboveThreshold) {
+    if (dataUsed >= fupThreshold && !alreadyReached) {
       // FUP threshold just crossed - apply speed limit
       logger.info(`FUP threshold reached for customer ${customerId}`);
 
@@ -265,9 +264,13 @@ class UsageService {
         },
         86400 // 24 hours
       );
-    } else if (!isAboveThreshold && isAboveThreshold) {
-      // Usage dropped below threshold (maybe new billing period)
+      
+      // Mark threshold as reached (expire after billing period - 30 days)
+      await cache.set(thresholdReachedKey, true, 30 * 24 * 60 * 60);
+    } else if (dataUsed < fupThreshold && alreadyReached) {
+      // Usage dropped below threshold (maybe new billing period), clear flags
       await cache.del(`radius:fup:${subscriptionId}`);
+      await cache.del(thresholdReachedKey);
     }
 
     // Warning at 90% (only once)
