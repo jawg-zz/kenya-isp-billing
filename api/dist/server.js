@@ -61,6 +61,33 @@ app.get('/health', (_req, res) => {
     });
 });
 app.use('/health', health_routes_1.default);
+// Health endpoint at /api/v1/health
+app.get(`${config_1.default.apiPrefix}/health`, async (_req, res) => {
+    let dbStatus = 'disconnected';
+    let redisStatus = 'disconnected';
+    try {
+        await database_1.prisma.$queryRaw `SELECT 1`;
+        dbStatus = 'connected';
+    }
+    catch {
+        // dbStatus stays disconnected
+    }
+    try {
+        await redis_1.default.getInstance().ping();
+        redisStatus = 'connected';
+    }
+    catch {
+        // redisStatus stays disconnected
+    }
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        services: {
+            database: dbStatus,
+            redis: redisStatus,
+        },
+    });
+});
 // API routes
 app.use(`${config_1.default.apiPrefix}/auth`, auth_routes_1.default);
 app.use(`${config_1.default.apiPrefix}/payments`, payment_routes_1.default);

@@ -17,12 +17,11 @@ class PlanController {
             const plans = await database_1.prisma.plan.findMany({
                 where,
                 include: {
-                    planPrices: true,
+                    planPrices: {
+                        where: { isActive: true },
+                    },
                 },
-                orderBy: [
-                    { sortOrder: 'asc' },
-                    { price: 'asc' },
-                ],
+                orderBy: { sortOrder: 'asc' },
             });
             const response = {
                 success: true,
