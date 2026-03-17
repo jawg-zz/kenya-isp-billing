@@ -11,6 +11,21 @@ RADIUS_SECRET="${RADIUS_SECRET:-changeme_use_strong_secret}"
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
+# Configure SQL module for PostgreSQL (Ubuntu default uses sqlite)
+SQLCONF="${RADDIR}/mods-available/sql"
+if [ -f "$SQLCONF" ]; then
+    sed -i 's/driver = "rlm_sql_sqlite"/driver = "rlm_sql_postgresql"/' "$SQLCONF"
+    sed -i 's/dialect = "sqlite"/dialect = "postgresql"/' "$SQLCONF"
+    sed -i "s|path = \"/etc/freeradius/3.0/mods-config/sql/main/sqlite\"|path = \"/etc/freeradius/3.0/mods-config/sql/main/postgresql\"|" "$SQLCONF"
+    sed -i "s/server = \"localhost\"/server = \"${RADIUS_DB_HOST}\"/" "$SQLCONF"
+    sed -i "s/port = 3306/port = ${RADIUS_DB_PORT}/" "$SQLCONF"
+    sed -i "s/login = \"radius\"/login = \"${POSTGRES_USER}\"/" "$SQLCONF"
+    sed -i "s/password = \"radpass\"/password = \"${POSTGRES_PASSWORD}\"/" "$SQLCONF"
+    sed -i "s/radius_db = \"radius\"/radius_db = \"${POSTGRES_DB}\"/" "$SQLCONF"
+    sed -i 's/read_clients = no/read_clients = yes/' "$SQLCONF"
+    echo "✅ SQL module configured for PostgreSQL"
+fi
+
 # Substitute environment variables into configs
 sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" "${RADDIR}/clients.conf"
 sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
