@@ -75,9 +75,9 @@ class AuthService {
           county: input.county,
           postalCode: input.postalCode,
           idNumber: input.idNumber,
-          phoneVerified: false,
-          emailVerified: false,
-          accountStatus: 'PENDING_VERIFICATION',
+          phoneVerified: true,
+          emailVerified: true,
+          accountStatus: 'ACTIVE',
         },
         select: {
           id: true,
@@ -116,6 +116,16 @@ class AuthService {
       },
     });
 
+    // Send welcome SMS
+    try {
+      await smsService.send({
+        to: result.user.phone,
+        message: `Welcome to ISP Billing, ${result.user.firstName}! Your customer code is ${customerCode}. You can now subscribe to a plan.`,
+      });
+    } catch (error) {
+      logger.error('Failed to send welcome SMS:', error);
+    }
+
     logger.info(`User registered: ${result.user.email}`);
 
     return { user: result.user, tokens };
@@ -123,6 +133,13 @@ class AuthService {
 
   // Login
   async login(email: string, password: string): Promise<{ user: any; tokens: AuthTokens }> {
+    // Check if account is locked
+    const lockKey = `loginLock:${email.toLowerCase()}`;
+    const isLocked = await cache.get(lockKey);
+    if (isLocked) {
+      throw new UnauthorizedError('Account temporarily locked due to too many failed attempts. Try again in 15 minutes.');
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       select: {
@@ -144,6 +161,16 @@ class AuthService {
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
+      // Track failed attempts
+      const failKey = `loginFail:${email.toLowerCase()}`;
+      const fails = (await cache.get<number>(failKey) || 0) + 1;
+      await cache.set(failKey, fails, 15 * 60); // 15 min window
+
+      if (fails >= 5) {
+        await cache.set(lockKey, true, 15 * 60); // Lock for 15 min
+        logger.warn(`Account locked after 5 failed attempts: ${email}`);
+      }
+
       throw new UnauthorizedError('Invalid email or password');
     }
 
@@ -151,6 +178,13 @@ class AuthService {
     if (user.accountStatus === 'SUSPENDED' || user.accountStatus === 'TERMINATED') {
       throw new UnauthorizedError('Account is suspended or terminated');
     }
+
+    if (user.accountStatus === 'PENDING_VERIFICATION') {
+      throw new UnauthorizedError('Please verify your account before logging in');
+    }
+
+    // Clear failed attempts on success
+    await cache.del(`loginFail:${email.toLowerCase()}`);
 
     // Update last login
     await prisma.user.update({
