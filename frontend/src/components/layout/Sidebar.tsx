@@ -47,6 +47,7 @@ const adminNav: NavItem[] = [
   { name: 'Invoices', href: '/invoices/management', icon: FileText },
   { name: 'Revenue', href: '/revenue', icon: Receipt },
   { name: 'Network', href: '/network', icon: Network },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 interface SidebarProps {

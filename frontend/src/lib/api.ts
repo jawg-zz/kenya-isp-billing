@@ -404,6 +404,27 @@ class ApiClient {
     return data;
   }
 
+  // Settings
+  async getSettings() {
+    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/settings');
+    return data;
+  }
+
+  async getSettingsByCategory(category: string) {
+    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>(`/settings/category/${category}`);
+    return data;
+  }
+
+  async updateSetting(key: string, value: string) {
+    const { data } = await this.client.put<ApiResponse<Record<string, unknown>>>(`/settings/${key}`, { value });
+    return data;
+  }
+
+  async bulkUpdateSettings(settings: Record<string, string>) {
+    const { data } = await this.client.post<ApiResponse<Record<string, unknown>>>('/settings/bulk', { settings });
+    return data;
+  }
+
   async getHealthDetailed() {
     const { data } = await this.client.get<{
       status: string;
