@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -22,6 +23,7 @@ import {
   BarChart3,
   Zap,
   Star,
+  XCircle,
 } from 'lucide-react';
 
 function formatKES(amount: number): string {
@@ -70,6 +72,8 @@ interface Subscription {
 export default function CustomerPlansPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const { data: plansData, isLoading: plansLoading, error: plansError } = useQuery({
     queryKey: ['customer-plans'],
@@ -102,6 +106,22 @@ export default function CustomerPlansPage() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: async ({ subscriptionId, reason }: { subscriptionId: string; reason?: string }) => {
+      return api.cancelSubscription(subscriptionId, reason);
+    },
+    onSuccess: () => {
+      toast.success('Subscription cancelled. It will remain active until the end of the billing period.');
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      setShowCancelDialog(false);
+      setCancelReason('');
+    },
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Failed to cancel subscription.');
+    },
+  });
+
   if (!user) return null;
 
   const plans = plansData?.plans?.filter((p) => p.isActive) || [];
@@ -124,48 +144,101 @@ export default function CustomerPlansPage() {
         )}
 
         {activeSubscription && activePlan && (
-          <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
-                <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Active Subscription</h3>
-                <div className="mt-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-emerald-900 dark:text-emerald-100">{activePlan.name}</span>
-                    <StatusBadge status={activeSubscription.status} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Price</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">{formatKES(Number(activePlan.price))}</p>
+          <>
+            <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Active Subscription</h3>
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-emerald-900 dark:text-emerald-100">{activePlan.name}</span>
+                      <StatusBadge status={activeSubscription.status} />
                     </div>
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Speed</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">
-                        {activePlan.speedLimit ? `${activePlan.speedLimit} Mbps` : 'Unlimited'}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                      <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Price</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">{formatKES(Number(activePlan.price))}</p>
+                      </div>
+                      <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Speed</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">
+                          {activePlan.speedLimit ? `${activePlan.speedLimit} Mbps` : 'Unlimited'}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Data</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">{formatBytes(activePlan.dataAllowance)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
+                      <p>
+                        Active until: {format(new Date(activeSubscription.endDate), 'MMM d, yyyy')}
                       </p>
+                      {activeSubscription.autoRenew && (
+                        <p className="flex items-center gap-1 mt-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                          <TrendingUp className="h-3.5 w-3.5" /> Auto-renew enabled
+                        </p>
+                      )}
                     </div>
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-xl">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Data</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white mt-0.5">{formatBytes(activePlan.dataAllowance)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-                    <p>
-                      Active until: {format(new Date(activeSubscription.endDate), 'MMM d, yyyy')}
-                    </p>
-                    {activeSubscription.autoRenew && (
-                      <p className="flex items-center gap-1 mt-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                        <TrendingUp className="h-3.5 w-3.5" /> Auto-renew enabled
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+
+            {/* Cancel Subscription Section */}
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardHeader
+                title="Cancel Subscription"
+                description="Your subscription will remain active until the end of the billing period."
+              />
+              {!showCancelDialog ? (
+                <Button variant="danger" onClick={() => setShowCancelDialog(true)}>
+                  <XCircle className="h-4 w-4 mr-2" /> Cancel Subscription
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div className="text-sm text-amber-700 dark:text-amber-300">
+                        <p className="font-semibold">Are you sure you want to cancel?</p>
+                        <p className="mt-1">Your subscription will remain active until {format(new Date(activeSubscription.endDate), 'MMM d, yyyy')}. You will not be charged after this date unless you resubscribe.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for cancellation (optional)</label>
+                    <textarea
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      rows={2}
+                      placeholder="Help us improve by sharing why you're cancelling..."
+                      className="w-full rounded-xl border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="danger"
+                      onClick={() => cancelMutation.mutate({ subscriptionId: activeSubscription.id, reason: cancelReason || undefined })}
+                      isLoading={cancelMutation.isPending}
+                    >
+                      Confirm Cancellation
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => { setShowCancelDialog(false); setCancelReason(''); }}
+                      disabled={cancelMutation.isPending}
+                    >
+                      Keep Subscription
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </>
         )}
 
         {plansLoading ? (

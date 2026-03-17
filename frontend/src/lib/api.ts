@@ -162,7 +162,7 @@ class ApiClient {
   }
 
   async sendPhoneVerification() {
-    const { data } = await this.client.post<ApiResponse>('/auth/send-phone-verification');
+    const { data } = await this.client.post<ApiResponse>('/auth/verify-phone/send');
     return data;
   }
 

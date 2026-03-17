@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { cache } from '../config/redis';
 import { logger } from '../config/logger';
 import { NotFoundError, UsageStats } from '../types';
+import { createNotification } from './notificationHelper';
 
 interface UsageSummary {
   daily: {
@@ -245,14 +246,12 @@ class UsageService {
       logger.info(`FUP threshold reached for customer ${customerId}`);
 
       // Create notification
-      await prisma.notification.create({
-        data: {
-          userId: subscription.customer.userId,
-          type: 'FUP_THRESHOLD',
-          title: 'Fair Usage Policy Applied',
-          message: `You have reached the fair usage limit of ${this.formatBytes(fupThreshold)}. Your internet speed has been reduced to ${subscription.plan.fupSpeedLimit || 1} Mbps.`,
-          channel: 'in_app',
-        },
+      await createNotification({
+        userId: subscription.customer.userId,
+        type: 'FUP_THRESHOLD',
+        title: 'Fair Usage Policy Applied',
+        message: `You have reached the fair usage limit of ${this.formatBytes(fupThreshold)}. Your internet speed has been reduced to ${subscription.plan.fupSpeedLimit || 1} Mbps.`,
+        channel: 'in_app',
       });
 
       // Update cache to trigger speed limit on next RADIUS auth
@@ -282,14 +281,12 @@ class UsageService {
       if (!warningSent) {
         const percentageUsed = Math.round((dataUsed / fupThreshold) * 100);
 
-        await prisma.notification.create({
-          data: {
-            userId: subscription.customer.userId,
-            type: 'FUP_THRESHOLD',
-            title: 'Fair Usage Warning',
-            message: `You have used ${percentageUsed}% of your fair usage allowance. Speed may be reduced after reaching ${this.formatBytes(fupThreshold)}.`,
-            channel: 'in_app',
-          },
+        await createNotification({
+          userId: subscription.customer.userId,
+          type: 'FUP_THRESHOLD',
+          title: 'Fair Usage Warning',
+          message: `You have used ${percentageUsed}% of your fair usage allowance. Speed may be reduced after reaching ${this.formatBytes(fupThreshold)}.`,
+          channel: 'in_app',
         });
 
         await cache.set(warningKey, true, 86400);

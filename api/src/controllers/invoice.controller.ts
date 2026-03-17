@@ -3,6 +3,8 @@ import fs from 'fs';
 import { prisma } from '../config/database';
 import { cache } from '../config/redis';
 import { invoiceService } from '../services/invoice.service';
+import { generateInvoicePDF } from '../templates/invoice-pdf';
+import config from '../config';
 import { AuthenticatedRequest, ApiResponse, NotFoundError } from '../types';
 
 class InvoiceController {

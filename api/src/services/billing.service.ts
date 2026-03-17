@@ -5,6 +5,7 @@ import { logger } from '../config/logger';
 import { AppError, NotFoundError } from '../types';
 import { invoiceService } from './invoice.service';
 import { smsService } from './sms.service';
+import { createNotification } from './notificationHelper';
 
 interface CreateInvoiceInput {
   customerId: string;
@@ -103,14 +104,12 @@ class BillingService {
     });
 
     // Send notification
-    await prisma.notification.create({
-      data: {
-        userId: subscription.customer.userId,
-        type: 'INVOICE_GENERATED',
-        title: 'New Invoice',
-        message: `Invoice ${invoiceNumber} for KES ${totalAmount.toFixed(2)} has been generated.`,
-        channel: 'in_app',
-      },
+    await createNotification({
+      userId: subscription.customer.userId,
+      type: 'INVOICE_GENERATED',
+      title: 'New Invoice',
+      message: `Invoice ${invoiceNumber} for KES ${totalAmount.toFixed(2)} has been generated.`,
+      channel: 'in_app',
     });
 
     // Send SMS if customer has phone
@@ -229,14 +228,12 @@ class BillingService {
             });
 
             // Notify customer
-            await prisma.notification.create({
-              data: {
-                userId: invoice.customer.userId,
-                type: 'ACCOUNT_SUSPENDED',
-                title: 'Account Suspended',
-                message: 'Your account has been suspended due to overdue payments. Please make a payment to restore service.',
-                channel: 'in_app',
-              },
+            await createNotification({
+              userId: invoice.customer.userId,
+              type: 'ACCOUNT_SUSPENDED',
+              title: 'Account Suspended',
+              message: 'Your account has been suspended due to overdue payments. Please make a payment to restore service.',
+              channel: 'in_app',
             });
 
             logger.info(`Customer ${invoice.customerId} suspended for overdue invoice`);
@@ -373,14 +370,12 @@ class BillingService {
     });
 
     // Notify customer
-    await prisma.notification.create({
-      data: {
-        userId: customer.userId,
-        type: 'INVOICE_GENERATED',
-        title: 'New Invoice',
-        message: `Invoice ${invoiceNumber} for KES ${totalAmount.toFixed(2)} has been created.`,
-        channel: 'in_app',
-      },
+    await createNotification({
+      userId: customer.userId,
+      type: 'INVOICE_GENERATED',
+      title: 'New Invoice',
+      message: `Invoice ${invoiceNumber} for KES ${totalAmount.toFixed(2)} has been created.`,
+      channel: 'in_app',
     });
 
     logger.info(`Manual invoice ${invoiceNumber} created for customer ${input.customerId}`);
