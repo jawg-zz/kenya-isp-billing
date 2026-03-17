@@ -65,12 +65,36 @@ app.use(rateLimiter);
 // Input sanitization
 app.use(sanitize);
 
-// Health check endpoints (legacy simple endpoint + detailed routes)
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: config.env,
+// Health check endpoints
+app.get('/health', async (_req, res) => {
+  const startTime = process.uptime();
+
+  const checks: Record<string, { status: string; latencyMs: number }> = {};
+
+  // Check PostgreSQL
+  const dbStart = Date.now();
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = { status: 'ok', latencyMs: Date.now() - dbStart };
+  } catch {
+    checks.database = { status: 'error', latencyMs: Date.now() - dbStart };
+  }
+
+  // Check Redis
+  const redisStart = Date.now();
+  try {
+    await RedisClient.getInstance().ping();
+    checks.redis = { status: 'ok', latencyMs: Date.now() - redisStart };
+  } catch {
+    checks.redis = { status: 'error', latencyMs: Date.now() - redisStart };
+  }
+
+  const allHealthy = Object.values(checks).every((c) => c.status === 'ok');
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ok' : 'degraded',
+    uptime: startTime,
+    services: checks,
   });
 });
 app.use('/health', healthRoutes);
