@@ -495,13 +495,13 @@ class RadiusService {
       const { username, password, isActive = true } = config;
 
       // Check if FreeRADIUS radcheck table exists
-      const tableExists = await prisma.$queryRaw<{ exists: boolean }[]`
+      const tableExists = await prisma.$queryRaw`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
           AND table_name = 'radcheck'
         ) as exists
-      `;
+      ` as { exists: boolean }[];
 
       if (!tableExists[0]?.exists) {
         logger.warn('FreeRADIUS radcheck table not found, skipping sync');
