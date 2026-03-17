@@ -30,6 +30,8 @@ import radiusRoutes from './routes/radius.routes';
 import healthRoutes from './routes/health.routes';
 import auditRoutes from './routes/audit.routes';
 import settingsRoutes from './routes/settings.routes';
+import adminRoutes from './routes/admin.routes';
+import { startScheduler, stopScheduler } from './workers/scheduler';
 
 const app: Express = express();
 
@@ -161,6 +163,7 @@ app.use(`${config.apiPrefix}/customers`, customerRoutes);
 app.use(`${config.apiPrefix}/radius`, radiusRoutes);
 app.use(`${config.apiPrefix}/audit`, auditRoutes);
 app.use(`${config.apiPrefix}/settings`, settingsRoutes);
+app.use(`${config.apiPrefix}/admin`, adminRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -187,6 +190,14 @@ const startServer = async () => {
     logger.info('Redis connected successfully');
   } catch (error) {
     logger.error('Redis connection failed (will retry):', error);
+  }
+
+  // Start billing workers scheduler
+  try {
+    startScheduler();
+    logger.info('Billing workers scheduler started');
+  } catch (error) {
+    logger.error('Failed to start billing workers scheduler:', error);
   }
 };
 
@@ -224,13 +235,3 @@ process.on('uncaughtException', (error) => {
 startServer();
 
 export default app;
-// cache bust 1773732555
-n('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
-startServer();
-
-export default app;
-// cache bust 1773732555
