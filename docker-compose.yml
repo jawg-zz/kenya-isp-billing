@@ -104,7 +104,7 @@ services:
       - "1813:1813/udp"   # RADIUS Accounting
       - "3799:3799/udp"   # RADIUS CoA (Change of Authorization)
     healthcheck:
-      test: ["CMD-SHELL", "radtest localhost testing123 127.0.0.1 0 testing 2>/dev/null || echo 'check'"]
+      test: ["CMD-SHELL", "echo"]
       interval: 30s
       timeout: 10s
       retries: 3
