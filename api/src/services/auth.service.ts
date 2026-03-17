@@ -6,6 +6,7 @@ import config from '../config';
 import { cache } from '../config/redis';
 import { logger } from '../config/logger';
 import { smsService } from './sms.service';
+import { emailService } from './email.service';
 import {
   UnauthorizedError,
   ConflictError,
@@ -75,8 +76,8 @@ class AuthService {
           county: input.county,
           postalCode: input.postalCode,
           idNumber: input.idNumber,
-          phoneVerified: true,
-          emailVerified: true,
+          phoneVerified: false,
+          emailVerified: false,
           accountStatus: 'ACTIVE',
         },
         select: {
@@ -322,33 +323,32 @@ class AuthService {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
-    // Store in cache with 1 hour expiry
-    await cache.set(`passwordReset:${hashedToken}`, user.id, 3600);
+    // Store in cache with 1 hour expiry (use raw token as key so it matches the URL param)
+    await cache.set(`passwordReset:${resetToken}`, user.id, 3600);
 
-    // Send SMS with reset token
+    // Send email with reset link (primary method)
     try {
-      const smsResult = await smsService.send({
-        to: user.phone,
-        message: `Your ISP password reset code: ${resetToken}. Valid for 1 hour.`,
-      });
-
-      if (smsResult.success) {
-        logger.info(`Password reset SMS sent to: ${user.phone}`);
-      } else {
-        logger.error(`Failed to send password reset SMS to: ${user.phone}`, smsResult.error);
-      }
+      await emailService.sendPasswordResetEmail(user.email, resetToken, user.firstName);
+      logger.info(`Password reset email sent to: ${user.email}`);
     } catch (error) {
-      logger.error(`Error sending password reset SMS to: ${user.phone}`, error);
+      logger.error(`Failed to send password reset email to: ${user.email}`, error);
     }
 
-    logger.info(`Password reset requested for: ${email}`);
+    // Also send SMS with reset token (backup method)
+    try {
+      await smsService.send({
+        to: user.phone,
+        message: `Your ISP password reset code: ${resetToken.substring(0, 8)}. Use the link sent to your email to reset your password.`,
+      });
+      logger.info(`Password reset SMS sent to: ${user.phone}`);
+    } catch (error) {
+      logger.error(`Failed to send password reset SMS to: ${user.phone}`, error);
+    }
   }
 
   // Reset password
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    const userId = await cache.get<string>(`passwordReset:${hashedToken}`);
+    const userId = await cache.get<string>(`passwordReset:${token}`);
     if (!userId) {
       throw new UnauthorizedError('Invalid or expired reset token');
     }
@@ -361,7 +361,7 @@ class AuthService {
     });
 
     // Delete reset token
-    await cache.del(`passwordReset:${hashedToken}`);
+    await cache.del(`passwordReset:${token}`);
 
     // Revoke all refresh tokens
     await prisma.refreshToken.deleteMany({ where: { userId } });

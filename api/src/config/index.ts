@@ -58,6 +58,16 @@ export const config = {
     accountingPort: parseInt(process.env.RADIUS_ACCOUNTING_PORT || '1813', 10),
   },
 
+  email: {
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.EMAIL_FROM || 'noreply@ispbilling.co.ke',
+  },
+
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3001',
+
   invoice: {
     companyName: process.env.INVOICE_COMPANY_NAME || 'Your ISP Limited',
     companyAddress: process.env.INVOICE_COMPANY_ADDRESS || 'P.O. Box 12345, Nairobi, Kenya',
