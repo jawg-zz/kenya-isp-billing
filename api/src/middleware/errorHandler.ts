@@ -24,7 +24,7 @@ export const errorHandler = (
       errors?: Record<string, string[]>;
     } = {
       success: false,
-      message: err.message,
+      message: config.env === 'production' ? 'Internal server error' : err.message,
     };
 
     // Include validation errors if present
@@ -89,7 +89,7 @@ export const errorHandler = (
   // Default error
   res.status(500).json({
     success: false,
-    message: err.message,
+    message: config.env === 'production' ? 'Internal server error' : err.message,
   });
 };
 

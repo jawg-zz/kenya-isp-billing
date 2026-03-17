@@ -3,6 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
+
+// Fix BigInt serialization for JSON responses
+(BigInt.prototype as any).toJSON = function() { return this.toString(); };
+
 import config from './config';
 import { prisma } from './config/database';
 import RedisClient from './config/redis';
