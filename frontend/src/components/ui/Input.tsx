@@ -24,7 +24,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           id={inputId}
           className={twMerge(
             clsx(
-              'block w-full rounded-lg border px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
+              'block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
               error ? 'border-red-300 dark:border-red-700 text-red-900 dark:text-red-300' : 'border-gray-300 dark:border-gray-600',
               className
             )
@@ -61,7 +61,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={inputId}
           className={twMerge(
             clsx(
-              'block w-full rounded-lg border px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
+              'block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
               error ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-600',
               className
             )
@@ -99,7 +99,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           id={inputId}
           className={twMerge(
             clsx(
-              'block w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800 dark:text-white',
+              'block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800',
               error ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-600',
               className
             )
