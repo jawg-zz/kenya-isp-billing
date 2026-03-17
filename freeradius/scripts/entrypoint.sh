@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 RADIUS_DB_HOST="${RADIUS_DB_HOST:-postgres}"
@@ -10,8 +10,22 @@ RADIUS_SECRET="${RADIUS_SECRET:-changeme_use_strong_secret}"
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
+# Substitute environment variables into configs
+sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" /etc/raddb/clients.conf 2>/dev/null || true
+sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+sed -i "s|\${sql_port}|${RADIUS_DB_PORT}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+sed -i "s|\${sql_login}|${POSTGRES_USER}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+sed -i "s|\${sql_password}|${POSTGRES_PASSWORD}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+sed -i "s|\${sql_radius_db}|${POSTGRES_DB}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+
 echo "🔄 Waiting for PostgreSQL at ${RADIUS_DB_HOST}:${RADIUS_DB_PORT}..."
+retries=30
 until pg_isready -h "${RADIUS_DB_HOST}" -p "${RADIUS_DB_PORT}" -U "${POSTGRES_USER}" > /dev/null 2>&1; do
+    retries=$((retries - 1))
+    if [ $retries -le 0 ]; then
+        echo "❌ PostgreSQL not available after 60s"
+        exit 1
+    fi
     sleep 2
 done
 echo "✅ PostgreSQL is ready"
@@ -112,24 +126,19 @@ EOSQL
 
 echo "✅ FreeRADIUS tables ready"
 
-# Insert default NAS entries
+# Insert default NAS entry for API
 psql -h "${RADIUS_DB_HOST}" -p "${RADIUS_DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "
-INSERT INTO nas (nasname, shortname, type, secret)
-SELECT 'isp_billing_api', 'api', 'other', '${RADIUS_SECRET}'
+INSERT INTO nas (nasname, shortname, type, secret, description)
+SELECT 'isp_billing_api', 'api', 'other', '${RADIUS_SECRET}', 'ISP Billing API'
 WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'isp_billing_api');
-"
+" 2>/dev/null || echo "⚠️  Could not register default NAS (non-critical)"
 
 echo "✅ Default NAS registered"
 
-# Substitute environment variables into SQL config
-sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_port}|${RADIUS_DB_PORT}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_login}|${POSTGRES_USER}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_password}|${POSTGRES_PASSWORD}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_radius_db}|${POSTGRES_DB}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+# Ensure sql module is enabled
+if [ ! -L /etc/raddb/mods-enabled/sql ] && [ -f /etc/raddb/mods-available/sql ]; then
+    ln -sf /etc/raddb/mods-available/sql /etc/raddb/mods-enabled/sql
+fi
 
-# Substitute RADIUS secret into clients.conf
-sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" /etc/raddb/clients.conf 2>/dev/null || true
-
-echo "🚀 Starting FreeRADIUS in debug mode..."
+echo "🚀 Starting FreeRADIUS..."
 exec radiusd -f -X
