@@ -29,6 +29,7 @@ import customerRoutes from './routes/customer.routes';
 import radiusRoutes from './routes/radius.routes';
 import healthRoutes from './routes/health.routes';
 import auditRoutes from './routes/audit.routes';
+import settingsRoutes from './routes/settings.routes';
 
 const app: Express = express();
 
@@ -159,6 +160,7 @@ app.use(`${config.apiPrefix}/usage`, usageRoutes);
 app.use(`${config.apiPrefix}/customers`, customerRoutes);
 app.use(`${config.apiPrefix}/radius`, radiusRoutes);
 app.use(`${config.apiPrefix}/audit`, auditRoutes);
+app.use(`${config.apiPrefix}/settings`, settingsRoutes);
 
 // Error handling
 app.use(notFoundHandler);

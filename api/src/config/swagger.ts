@@ -285,6 +285,17 @@ const options: swaggerJsdoc.Options = {
             message: { type: 'string' },
           },
         },
+        SystemSetting: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            key: { type: 'string', example: 'company_name' },
+            value: { type: 'string', example: 'Acme ISP Ltd' },
+            category: { type: 'string', example: 'company' },
+            description: { type: 'string', nullable: true, example: 'Company display name' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
         Error: {
           type: 'object',
           properties: {
