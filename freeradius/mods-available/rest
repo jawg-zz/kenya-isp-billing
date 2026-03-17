@@ -1,0 +1,32 @@
+// REST Module - Proxy RADIUS auth/accounting to ISP Billing API
+rest {
+    base_url = "${rest_api_url}"
+    
+    connect_uri = "${rest_api_url}"
+
+    // Pull attributes from REST API
+    authorize {
+        url = "${rest_api_url}/radius/proxy/authorize"
+    }
+    
+    // Post authentication results  
+    authenticate {
+        url = "${rest_api_url}/radius/proxy/authenticate"
+    }
+    
+    // Accounting
+    accounting {
+        url = "${rest_api_url}/radius/proxy/accounting"
+    }
+    
+    // Post-auth
+    postauth {
+        url = "${rest_api_url}/radius/proxy/postauth"
+    }
+
+    // HTTP settings
+    tls {
+    }
+    
+    http_client = no
+}

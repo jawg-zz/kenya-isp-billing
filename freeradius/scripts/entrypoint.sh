@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+RADDIR="/etc/freeradius/3.0"
 RADIUS_DB_HOST="${RADIUS_DB_HOST:-postgres}"
 RADIUS_DB_PORT="${RADIUS_DB_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-isp_billing}"
@@ -11,12 +12,16 @@ RADIUS_SECRET="${RADIUS_SECRET:-changeme_use_strong_secret}"
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
 # Substitute environment variables into configs
-sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" /etc/raddb/clients.conf 2>/dev/null || true
-sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_port}|${RADIUS_DB_PORT}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_login}|${POSTGRES_USER}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_password}|${POSTGRES_PASSWORD}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
-sed -i "s|\${sql_radius_db}|${POSTGRES_DB}|g" /etc/raddb/mods-enabled/sql 2>/dev/null || true
+sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" "${RADDIR}/clients.conf"
+sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
+sed -i "s|\${sql_port}|${RADIUS_DB_PORT}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
+sed -i "s|\${sql_login}|${POSTGRES_USER}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
+sed -i "s|\${sql_password}|${POSTGRES_PASSWORD}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
+sed -i "s|\${sql_radius_db}|${POSTGRES_DB}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
+
+# Substitute REST API URL
+REST_API_URL="${REST_API_URL:-http://api:3000/api/v1}"
+sed -i "s|\${rest_api_url}|${REST_API_URL}|g" "${RADDIR}/mods-enabled/rest" 2>/dev/null || true
 
 echo "🔄 Waiting for PostgreSQL at ${RADIUS_DB_HOST}:${RADIUS_DB_PORT}..."
 retries=30
@@ -122,23 +127,18 @@ CREATE INDEX IF NOT EXISTS radacct_acctsessionid ON radacct(acctsessionid);
 CREATE INDEX IF NOT EXISTS radacct_acctuniqueid ON radacct(acctuniqueid);
 CREATE INDEX IF NOT EXISTS radacct_nasipaddress ON radacct(nasipaddress);
 
+-- Insert default NAS entries
+INSERT INTO nas (nasname, shortname, type, secret, description)
+SELECT 'localhost', 'localhost', 'other', '${RADIUS_SECRET}', 'Localhost NAS'
+WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'localhost');
+
+INSERT INTO nas (nasname, shortname, type, secret, description)
+SELECT 'isp_billing_api', 'api', 'other', '${RADIUS_SECRET}', 'ISP Billing API'
+WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'isp_billing_api');
+
 EOSQL
 
 echo "✅ FreeRADIUS tables ready"
 
-# Insert default NAS entry for API
-psql -h "${RADIUS_DB_HOST}" -p "${RADIUS_DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "
-INSERT INTO nas (nasname, shortname, type, secret, description)
-SELECT 'isp_billing_api', 'api', 'other', '${RADIUS_SECRET}', 'ISP Billing API'
-WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'isp_billing_api');
-" 2>/dev/null || echo "⚠️  Could not register default NAS (non-critical)"
-
-echo "✅ Default NAS registered"
-
-# Ensure sql module is enabled
-if [ ! -L /etc/raddb/mods-enabled/sql ] && [ -f /etc/raddb/mods-available/sql ]; then
-    ln -sf /etc/raddb/mods-available/sql /etc/raddb/mods-enabled/sql
-fi
-
-echo "🚀 Starting FreeRADIUS..."
-exec radiusd -f -X
+echo "🚀 Starting FreeRADIUS in debug mode..."
+exec freeradius -f -X
