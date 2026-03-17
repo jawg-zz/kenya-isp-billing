@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { withAuth } from '@/lib/auth';
 import { MainLayout } from '@/components/layout/Sidebar';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +16,7 @@ import {
   ArrowLeft,
   FileText,
   Download,
+  CreditCard,
   Calendar,
   DollarSign,
   User,
@@ -36,17 +38,21 @@ function formatKES(amount: number): string {
 
 const STATUS_OPTIONS = ['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED'];
 
-export default function AdminInvoiceDetailPage() {
+function InvoiceDetailPage() {
   const params = useParams();
   const invoiceId = params.id as string;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [statusNotes, setStatusNotes] = useState('');
 
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPPORT';
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-invoice', invoiceId],
+    queryKey: [isAdmin ? 'admin-invoice' : 'invoice', invoiceId],
     queryFn: async () => {
-      const res = await api.getAdminInvoice(invoiceId);
+      const res = isAdmin
+        ? await api.getAdminInvoice(invoiceId)
+        : await api.getInvoice(invoiceId);
       return res.data as unknown as { invoice: Record<string, unknown> };
     },
     enabled: !!invoiceId,
@@ -105,13 +111,14 @@ export default function AdminInvoiceDetailPage() {
     return (
       <MainLayout user={user}>
         <div className="space-y-6">
-          <Link href="/invoices/management" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <Link href={isAdmin ? "/invoices/management" : "/invoices"} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
             <ArrowLeft className="h-4 w-4" /> Back to Invoices
           </Link>
           <Card>
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Invoice not found</h3>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">This invoice may have been removed or you don&apos;t have access.</p>
             </div>
           </Card>
         </div>
@@ -131,7 +138,7 @@ export default function AdminInvoiceDetailPage() {
     <MainLayout user={user}>
       <div className="space-y-6">
         {/* Back link */}
-        <Link href="/invoices/management" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <Link href={isAdmin ? "/invoices/management" : "/invoices"} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
           <ArrowLeft className="h-4 w-4" /> Back to Invoices
         </Link>
 
@@ -152,45 +159,54 @@ export default function AdminInvoiceDetailPage() {
             <Button variant="secondary" onClick={downloadPDF} disabled={isLoading}>
               <Download className="h-4 w-4 mr-2" /> Download PDF
             </Button>
+            {!isAdmin && isUnpaid && (
+              <Link href="/payments">
+                <Button>
+                  <CreditCard className="h-4 w-4 mr-2" /> Pay Now
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Customer info */}
-            <Card>
-              <CardHeader title="Customer Information" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3">
-                  <User className="h-4 w-4 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">
-                      {customer?.user?.firstName || ''} {customer?.user?.lastName || ''}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Code: {customer?.customerCode || '—'}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Account: {customer?.accountNumber || '—'}</p>
+            {/* Customer info (admin only) */}
+            {isAdmin && customer && (
+              <Card>
+                <CardHeader title="Customer Information" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-3">
+                    <User className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {customer?.user?.firstName || ''} {customer?.user?.lastName || ''}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Code: {customer?.customerCode || '—'}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Account: {customer?.accountNumber || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {customer?.user?.email && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <Mail className="h-3.5 w-3.5" /> {customer.user.email}
+                      </div>
+                    )}
+                    {customer?.user?.phone && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <Phone className="h-3.5 w-3.5" /> {customer.user.phone}
+                      </div>
+                    )}
+                    {customer?.user?.addressLine1 && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <MapPin className="h-3.5 w-3.5" /> {customer.user.addressLine1}{customer.user.city ? `, ${customer.user.city}` : ''}{customer.user.county ? `, ${customer.user.county}` : ''}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  {customer?.user?.email && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <Mail className="h-3.5 w-3.5" /> {customer.user.email}
-                    </div>
-                  )}
-                  {customer?.user?.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <Phone className="h-3.5 w-3.5" /> {customer.user.phone}
-                    </div>
-                  )}
-                  {customer?.user?.addressLine1 && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <MapPin className="h-3.5 w-3.5" /> {customer.user.addressLine1}{customer.user.city ? `, ${customer.user.city}` : ''}{customer.user.county ? `, ${customer.user.county}` : ''}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
+              </Card>
+            )}
 
             {/* Invoice details */}
             <Card>
@@ -227,7 +243,7 @@ export default function AdminInvoiceDetailPage() {
                   </p>
                 </div>
               </div>
-              {subscription && (
+              {subscription && subscription.startDate && (
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl text-sm text-blue-700 dark:text-blue-300">
                   <p className="font-medium">Subscription Period</p>
                   <p>{subscription.startDate ? format(new Date(subscription.startDate), 'MMM d, yyyy') : '—'} — {subscription.endDate ? format(new Date(subscription.endDate), 'MMM d, yyyy') : '—'}</p>
@@ -313,48 +329,69 @@ export default function AdminInvoiceDetailPage() {
                   <span className="text-xl font-bold text-gray-900 dark:text-white">{formatKES(Number(invoice?.totalAmount || 0))}</span>
                 </div>
               </div>
-            </Card>
-
-            {/* Admin: Update status */}
-            <Card>
-              <CardHeader title="Update Status" />
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-                  <select
-                    value={currentStatus}
-                    onChange={(e) => {
-                      updateStatusMutation.mutate({ status: e.target.value, notes: statusNotes || undefined });
-                    }}
-                    disabled={updateStatusMutation.isPending}
-                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-                  <textarea
-                    value={statusNotes}
-                    onChange={(e) => setStatusNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Optional notes..."
-                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                  />
-                </div>
-              </div>
-              {invoice?.notes && (
+              {!isAdmin && isUnpaid && (
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Existing Notes</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{invoice.notes as string}</p>
+                  <Link href="/payments" className="block">
+                    <Button className="w-full">
+                      <CreditCard className="h-4 w-4 mr-2" /> Pay Now
+                    </Button>
+                  </Link>
                 </div>
               )}
             </Card>
+
+            {/* Admin: Update status */}
+            {isAdmin && (
+              <Card>
+                <CardHeader title="Update Status" />
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                    <select
+                      value={currentStatus}
+                      onChange={(e) => {
+                        updateStatusMutation.mutate({ status: e.target.value, notes: statusNotes || undefined });
+                      }}
+                      disabled={updateStatusMutation.isPending}
+                      className="w-full rounded-xl border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                    <textarea
+                      value={statusNotes}
+                      onChange={(e) => setStatusNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Optional notes..."
+                      className="w-full rounded-xl border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                    />
+                  </div>
+                </div>
+                {invoice?.notes && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Existing Notes</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{invoice.notes as string}</p>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* Customer: Notes */}
+            {!isAdmin && invoice?.notes && (
+              <Card>
+                <CardHeader title="Notes" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">{invoice.notes as string}</p>
+              </Card>
+            )}
           </div>
         </div>
       </div>
     </MainLayout>
   );
 }
+
+export default withAuth(InvoiceDetailPage);

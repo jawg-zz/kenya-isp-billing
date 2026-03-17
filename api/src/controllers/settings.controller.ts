@@ -40,7 +40,7 @@ class SettingsController {
    */
   async getSetting(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { key } = req.params as { key: string };
+      const { key } = req.params as unknown as { key: string };
 
       const setting = await prisma.systemSetting.findUnique({
         where: { key },
@@ -66,7 +66,7 @@ class SettingsController {
    */
   async getSettingsByCategory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { category } = req.params as { category: string };
+      const { category } = req.params as unknown as { category: string };
 
       const settings = await prisma.systemSetting.findMany({
         where: { category },

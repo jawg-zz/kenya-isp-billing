@@ -1,3 +1,4 @@
+import { Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../config/database';
 import { cache } from '../config/redis';
 
@@ -17,11 +18,11 @@ export async function createNotification(data: NotificationData): Promise<void> 
   const notification = await prisma.notification.create({
     data: {
       userId: data.userId,
-      type: data.type,
+      type: data.type as NotificationType,
       title: data.title,
       message: data.message,
       channel: data.channel || 'in_app',
-      metadata: data.metadata || undefined,
+      metadata: (data.metadata as Prisma.InputJsonValue) ?? undefined,
     },
   });
 
