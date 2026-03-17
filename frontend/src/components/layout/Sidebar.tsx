@@ -43,6 +43,7 @@ const customerNav: NavItem[] = [
 const adminNav: NavItem[] = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Subscriptions', href: '/subscriptions', icon: CreditCard },
   { name: 'Plans', href: '/plans', icon: Package },
   { name: 'Invoices', href: '/invoices/management', icon: FileText },
   { name: 'Revenue', href: '/revenue', icon: Receipt },

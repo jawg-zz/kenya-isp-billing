@@ -125,6 +125,39 @@ class InvoiceController {
     }
   }
 
+  // Get single invoice (admin)
+  async getAdminInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+
+      const invoice = await prisma.invoice.findUnique({
+        where: { id },
+        include: {
+          customer: {
+            include: { user: true },
+          },
+          subscription: {
+            include: { plan: true },
+          },
+          payments: true,
+        },
+      });
+
+      if (!invoice) {
+        throw new NotFoundError('Invoice not found');
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: { invoice },
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Get all invoices (admin)
   async getAllInvoices(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {

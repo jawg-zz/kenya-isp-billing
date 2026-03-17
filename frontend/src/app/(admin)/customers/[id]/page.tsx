@@ -254,6 +254,13 @@ export default function CustomerDetailPage() {
           </Card>
           )}
 
+          {/* Balance Adjustment */}
+          {!isEditing && (
+            <BalanceAdjustmentCard customerId={customerId} onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
+            }} />
+          )}
+
           {/* Account Status & Save (edit mode) */}
           {isEditing ? (
             <Card>
@@ -335,5 +342,80 @@ export default function CustomerDetailPage() {
         </Card>
       </div>
     </MainLayout>
+  );
+}
+
+function BalanceAdjustmentCard({ customerId, onSuccess }: { customerId: string; onSuccess: () => void }) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const queryClient = useQueryClient();
+
+  const adjustMutation = useMutation({
+    mutationFn: async ({ amount, reason }: { amount: number; reason: string }) => {
+      return api.adjustCustomerBalance(customerId, amount, reason);
+    },
+    onSuccess: () => {
+      toast.success('Balance adjusted successfully');
+      setAmount('');
+      setReason('');
+      onSuccess();
+    },
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || 'Failed to adjust balance');
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount === 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error('Please provide a reason for the adjustment');
+      return;
+    }
+    adjustMutation.mutate({ amount: numAmount, reason: reason.trim() });
+  };
+
+  return (
+    <Card>
+      <CardHeader title="Balance Adjustment" description="Add credit or debit the customer account" />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="balance-amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Amount (KES)
+          </label>
+          <input
+            id="balance-amount"
+            type="number"
+            step="0.01"
+            placeholder="e.g. 500 or -200"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Positive = credit, Negative = debit</p>
+        </div>
+        <div>
+          <label htmlFor="balance-reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Reason
+          </label>
+          <textarea
+            id="balance-reason"
+            placeholder="Reason for this adjustment..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+        </div>
+        <Button type="submit" className="w-full" isLoading={adjustMutation.isPending}>
+          Apply Adjustment
+        </Button>
+      </form>
+    </Card>
   );
 }

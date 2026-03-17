@@ -304,6 +304,20 @@ router.post('/logout', authController.logout);
 
 /**
  * @swagger
+ * /auth/verify-phone/send:
+ *   post:
+ *     summary: Send phone verification code via SMS
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Verification code sent
+ */
+router.post('/verify-phone/send', authenticate, authController.sendPhoneVerification);
+
+/**
+ * @swagger
  * /auth/verify-phone:
  *   post:
  *     summary: Verify phone number with SMS code

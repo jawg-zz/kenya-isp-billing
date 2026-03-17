@@ -415,6 +415,26 @@ class AuthService {
     };
   }
 
+  // Send phone verification code via SMS
+  async sendPhoneVerificationCode(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundError('User not found');
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in Redis with 15-minute expiry
+    await cache.set(`phoneVerify:${userId}`, code, 15 * 60);
+
+    // Send via SMS
+    await smsService.send({
+      to: user.phone,
+      message: `Your ISP verification code: ${code}. Valid for 15 minutes.`,
+    });
+
+    logger.info(`Phone verification code sent to ${user.phone}`);
+  }
+
   // Generate unique customer code
   private generateCustomerCode(): string {
     const timestamp = Date.now().toString(36).toUpperCase();

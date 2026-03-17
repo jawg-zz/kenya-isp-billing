@@ -43,6 +43,8 @@ export const config = {
     shortcode: process.env.AIRTEL_SHORTCODE || '',
     environment: process.env.AIRTEL_ENVIRONMENT || 'sandbox',
     callbackUrl: process.env.AIRTEL_CALLBACK_URL || '',
+    callbackSecret: process.env.AIRTEL_CALLBACK_SECRET || '',
+    allowedIPs: process.env.AIRTEL_ALLOWED_IPS ? process.env.AIRTEL_ALLOWED_IPS.split(',').map((s) => s.trim()) : [],
   },
 
   sms: {

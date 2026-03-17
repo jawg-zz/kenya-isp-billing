@@ -319,6 +319,16 @@ class ApiClient {
     return data;
   }
 
+  async getAdminInvoice(id: string) {
+    const { data } = await this.client.get<ApiResponse<{ invoice: Record<string, unknown> }>>(`/invoices/admin/${id}`);
+    return data;
+  }
+
+  async updateInvoiceStatus(id: string, status: string, notes?: string) {
+    const { data } = await this.client.put<ApiResponse>(`/invoices/admin/${id}/status`, { status, notes });
+    return data;
+  }
+
   // Admin payments
   async getAllPayments(params?: Record<string, unknown>) {
     const { data } = await this.client.get<ApiResponse<{ payments: Record<string, unknown>[]; meta: Record<string, unknown> }>>('/payments', { params });
@@ -401,6 +411,26 @@ class ApiClient {
   // Admin subscriptions
   async getAllSubscriptions(params?: Record<string, unknown>) {
     const { data } = await this.client.get<ApiResponse<{ subscriptions: Record<string, unknown>[]; meta: Record<string, unknown> }>>('/subscriptions/admin/all', { params });
+    return data;
+  }
+
+  async getExpiringSubscriptions(days?: number) {
+    const { data } = await this.client.get<ApiResponse<{ subscriptions: Record<string, unknown>[] }>>('/subscriptions/admin/expiring', { params: { days } });
+    return data;
+  }
+
+  async adjustCustomerBalance(id: string, amount: number, reason: string) {
+    const { data } = await this.client.post<ApiResponse<{ customer: Record<string, unknown> }>>(`/customers/${id}/balance`, { amount, reason });
+    return data;
+  }
+
+  async suspendSubscription(id: string) {
+    const { data } = await this.client.post<ApiResponse>(`/subscriptions/${id}/suspend`);
+    return data;
+  }
+
+  async activateSubscription(id: string) {
+    const { data } = await this.client.post<ApiResponse>(`/subscriptions/${id}/activate`);
     return data;
   }
 

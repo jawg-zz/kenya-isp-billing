@@ -68,9 +68,19 @@ export default function UsagePage() {
   const plan = activeSub?.plan as Record<string, unknown> | undefined;
 
   const dataAllowance = plan?.dataAllowance ? Number(plan.dataAllowance) : 0;
-  const dataUsed = usage ? Number((usage as Record<string, unknown>).totalUsed || 0) : 0;
-  const dataRemaining = usage ? Number((usage as Record<string, unknown>).totalRemaining || 0) : 0;
-  const percentUsed = usage ? Number((usage as Record<string, unknown>).percentageUsed || 0) : 0;
+
+  // Real-time data from /usage/realtime endpoint
+  const realtimeUsage = realtime?.usage as Record<string, unknown> | undefined;
+  const dataUsed = realtimeUsage ? Number(realtimeUsage.totalUsed || 0) : 0;
+  const dataRemaining = realtimeUsage ? Number(realtimeUsage.totalRemaining || 0) : 0;
+  const percentUsed = realtimeUsage ? Number(realtimeUsage.percentageUsed || 0) : 0;
+  const fupReached = realtimeUsage ? Boolean(realtimeUsage.isFupThresholdReached) : false;
+
+  // Summary data from /usage/summary endpoint
+  const usageSummary = usage as Record<string, unknown> | undefined;
+  const totalDownload = usageSummary?.total ? Number((usageSummary.total as Record<string, unknown>)?.outputOctets || 0) : 0;
+  const totalUpload = usageSummary?.total ? Number((usageSummary.total as Record<string, unknown>)?.inputOctets || 0) : 0;
+  const daysRemaining = usageSummary ? Number(usageSummary.daysRemaining || 0) : 0;
 
   return (
     <MainLayout user={user}>
@@ -106,9 +116,9 @@ export default function UsagePage() {
           />
           <StatCard
             title="Status"
-            value={usage?.isFupThresholdReached ? 'FUP Reached' : 'Normal'}
+            value={fupReached ? 'FUP Reached' : 'Normal'}
             icon={Activity}
-            color={usage?.isFupThresholdReached ? 'yellow' : 'green'}
+            color={fupReached ? 'yellow' : 'green'}
             loading={usageLoading}
           />
         </div>
@@ -150,29 +160,29 @@ export default function UsagePage() {
           </Card>
         )}
 
-        {/* Real-time Stats */}
-        {realtime && (
+        {/* Current Usage Stats */}
+        {realtimeUsage && (
           <Card hover>
-            <CardHeader title="Current Session" />
+            <CardHeader title="Current Usage" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Download</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(Number((realtime as Record<string, unknown>).totalDownload || 0))}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Download</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(totalDownload)}</p>
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Upload</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(Number((realtime as Record<string, unknown>).totalUpload || 0))}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Upload</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(totalUpload)}</p>
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Session Time</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{(realtime as Record<string, unknown>).sessionTime || '0m'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Days Remaining</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{daysRemaining} days</p>
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Usage Status</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <div className={`h-2.5 w-2.5 rounded-full animate-pulse ${(realtime as Record<string, unknown>).isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                  <div className={`h-2.5 w-2.5 rounded-full ${fupReached ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {(realtime as Record<string, unknown>).isActive ? 'Connected' : 'Offline'}
+                    {fupReached ? 'FUP Applied' : 'Active'}
                   </span>
                 </div>
               </div>

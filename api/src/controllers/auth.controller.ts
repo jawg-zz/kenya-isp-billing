@@ -252,6 +252,22 @@ class AuthController {
     }
   }
 
+  // Send phone verification code
+  async sendPhoneVerification(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      await authService.sendPhoneVerificationCode(req.user!.id);
+
+      const response: ApiResponse = {
+        success: true,
+        message: 'Verification code sent to your phone',
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Verify phone
   async verifyPhone(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {

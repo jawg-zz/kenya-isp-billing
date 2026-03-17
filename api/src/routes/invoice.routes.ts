@@ -92,6 +92,28 @@ router.get('/admin/all', authorize('ADMIN', 'SUPPORT'), invoiceController.getAll
 
 /**
  * @swagger
+ * /invoices/admin/{id}:
+ *   get:
+ *     summary: Get invoice details (admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Invoice details with customer, subscription, and payments
+ *       404:
+ *         description: Invoice not found
+ */
+router.get('/admin/:id', authorize('ADMIN', 'SUPPORT'), invoiceController.getAdminInvoice);
+
+/**
+ * @swagger
  * /invoices/admin/create:
  *   post:
  *     summary: Create a manual invoice (admin)

@@ -9,6 +9,11 @@ import {
   mpesaIdempotencyCheck,
 } from '../middleware/mpesaValidation';
 import {
+  validateAirtelIP,
+  validateAirtelAuth,
+  validateAirtelIdempotency,
+} from '../middleware/airtelCallbackAuth';
+import {
   mpesaSTKPushSchema,
   airtelPaymentSchema,
   cashPaymentSchema,
@@ -32,7 +37,13 @@ router.post(
   paymentController.mpesaCallback
 );
 router.post('/mpesa/timeout', validateMpesaIP, validateMpesaSignature, paymentController.mpesaTimeout);
-router.post('/airtel/callback', paymentController.airtelCallback);
+router.post(
+  '/airtel/callback',
+  validateAirtelIP,
+  validateAirtelAuth,
+  validateAirtelIdempotency,
+  paymentController.airtelCallback
+);
 
 // All other routes require authentication
 router.use(authenticate);

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import dgram from 'dgram';
 import { prisma } from '../config/database';
 import config from '../config';
 import { logger } from '../config/logger';
@@ -505,28 +506,88 @@ class RadiusService {
     }
   }
 
-  // Apply FUP speed limit
+  // Apply FUP speed limit via RADIUS CoA
   private async applyFUPLimit(subscription: any): Promise<void> {
-    // This would send a RADIUS CoA packet to the NAS
-    // For now, we'll just log and update the cache
-    
+    try {
+      // Get the user's RADIUS config and active sessions to find the NAS
+      const radiusConfig = await prisma.radiusConfig.findUnique({
+        where: { customerId: subscription.customerId },
+      });
+
+      if (!radiusConfig) {
+        logger.warn(`Cannot apply FUP limit: no RADIUS config for customer ${subscription.customerId}`);
+        await this.cacheFUPLimit(subscription);
+        return;
+      }
+
+      // Find active sessions to determine the NAS
+      const activeSessions = await prisma.radiusSession.findMany({
+        where: {
+          user: { customer: { radiusConfig: { username: radiusConfig.username } } },
+          status: 'ACTIVE',
+        },
+      });
+
+      if (activeSessions.length === 0) {
+        logger.info(`No active sessions for ${radiusConfig.username}; caching FUP limit for next login`);
+        await this.cacheFUPLimit(subscription);
+        return;
+      }
+
+      const fupSpeedLimit = subscription.plan.fupSpeedLimit;
+      if (!fupSpeedLimit) {
+        logger.warn(`No fupSpeedLimit defined for plan ${subscription.plan.name}`);
+        return;
+      }
+
+      // Send CoA to each NAS where the user has an active session
+      const results = await Promise.allSettled(
+        activeSessions.map(async (session) => {
+          const nasPort = parseInt(process.env.RADIUS_COA_PORT || '3799', 10);
+          const success = await this.sendCoA(session.nasIpAddress, nasPort, {
+            'User-Name': radiusConfig.username,
+            'NAS-IP-Address': session.nasIpAddress,
+            'NAS-Port': session.nasPortId ? parseInt(session.nasPortId, 10) : 0,
+          });
+
+          if (success) {
+            logger.info(`FUP CoA sent to ${session.nasIpAddress} for ${radiusConfig.username}: speed=${fupSpeedLimit}`);
+          } else {
+            logger.warn(`FUP CoA failed for ${radiusConfig.username} on ${session.nasIpAddress}`);
+          }
+
+          return success;
+        })
+      );
+
+      const anySuccess = results.some((r) => r.status === 'fulfilled' && r.value);
+      if (anySuccess) {
+        await this.cacheFUPLimit(subscription);
+      } else {
+        logger.warn(`All FUP CoA attempts failed for subscription ${subscription.id}; will retry`);
+      }
+    } catch (error) {
+      logger.error(`Error applying FUP limit for subscription ${subscription.id}:`, error);
+      await this.cacheFUPLimit(subscription);
+    }
+  }
+
+  // Cache FUP limit state (used as fallback and for tracking)
+  private async cacheFUPLimit(subscription: any): Promise<void> {
     await cache.set(
       `radius:fup:${subscription.id}`,
       {
         appliedAt: new Date().toISOString(),
         newSpeed: subscription.plan.fupSpeedLimit,
+        planName: subscription.plan.name,
       },
       86400
     );
-
-    logger.info(`FUP limit applied for subscription ${subscription.id}`);
+    logger.info(`FUP limit cached for subscription ${subscription.id}`);
   }
 
-  // Disconnect user session
+  // Disconnect user session (sends RADIUS Disconnect-Request)
   async disconnectUser(username: string): Promise<void> {
-    // In a real implementation, this would send a RADIUS Disconnect-Request
-    // to the NAS device
-    
     const activeSessions = await prisma.radiusSession.findMany({
       where: {
         user: { customer: { radiusConfig: { username } } },
@@ -534,6 +595,26 @@ class RadiusService {
       },
     });
 
+    // Send Disconnect-Request to each NAS where the user has an active session
+    const nasPort = parseInt(process.env.RADIUS_COA_PORT || '3799', 10);
+
+    await Promise.allSettled(
+      activeSessions.map(async (session) => {
+        const success = await this.sendDisconnectRequest(session.nasIpAddress, nasPort, {
+          'User-Name': username,
+          'NAS-IP-Address': session.nasIpAddress,
+          'NAS-Port': session.nasPortId ? parseInt(session.nasPortId, 10) : 0,
+        });
+
+        if (success) {
+          logger.info(`Disconnect-Request sent to ${session.nasIpAddress} for ${username}`);
+        } else {
+          logger.warn(`Disconnect-Request failed for ${username} on ${session.nasIpAddress}`);
+        }
+      })
+    );
+
+    // Mark sessions as closed in DB regardless of NAS response
     for (const session of activeSessions) {
       await prisma.radiusSession.update({
         where: { id: session.id },
@@ -658,6 +739,263 @@ class RadiusService {
     });
 
     logger.info(`RADIUS user ${radiusConfig.username} re-enabled`);
+  }
+
+  // ========================
+  // RADIUS CoA (Change of Authorization)
+  // ========================
+
+  // RADIUS attribute types (RFC 2865 / RFC 2869)
+  private static readonly ATTR_USERNAME = 1;        // User-Name
+  private static readonly ATTR_NAS_IP = 4;          // NAS-IP-Address
+  private static readonly ATTR_NAS_PORT = 5;        // NAS-Port
+  private static readonly ATTR_MESSAGE_AUTH = 80;   // Message-Authenticator
+  private static readonly ATTR_EVENT_TIMESTAMP = 55; // Event-Timestamp
+  private static readonly ATTR_CALLED_STATION = 30;  // Called-Station-Id (user identifier)
+
+  // RADIUS packet codes
+  private static readonly CODE_COA_REQUEST = 40;
+  private static readonly CODE_DISCONNECT_REQUEST = 41;
+
+  // Default CoA port (RFC 5176)
+  static readonly COA_PORT = 3799;
+
+  /**
+   * Build a RADIUS CoA-Request packet with the given attributes.
+   * Format per RFC 2865:
+   *   Code (1) | Identifier (1) | Length (2) | Authenticator (16) | Attributes...
+   *
+   * Each attribute: Type (1) | Length (1) | Value (variable)
+   */
+  private buildCoAPacket(
+    attributes: Record<string, any>,
+    nasSecret: string
+  ): Buffer {
+    // 16-byte request authenticator (random for CoA)
+    const authenticator = crypto.randomBytes(16);
+
+    // Build attribute bytes
+    const attrBuffers: Buffer[] = [];
+
+    // Encode attributes by type
+    for (const [name, value] of Object.entries(attributes)) {
+      let attrType: number | undefined;
+      let attrValue: Buffer;
+
+      switch (name) {
+        case 'User-Name':
+          attrType = RadiusService.ATTR_USERNAME;
+          attrValue = Buffer.from(String(value), 'utf-8');
+          break;
+        case 'NAS-IP-Address':
+          attrType = RadiusService.ATTR_NAS_IP;
+          // IPv4 as 4-byte big-endian
+          const ipParts = String(value).split('.').map(Number);
+          attrValue = Buffer.from(ipParts);
+          break;
+        case 'NAS-Port':
+          attrType = RadiusService.ATTR_NAS_PORT;
+          attrValue = Buffer.alloc(4);
+          attrValue.writeUInt32BE(Number(value), 0);
+          break;
+        case 'Event-Timestamp':
+          attrType = RadiusService.ATTR_EVENT_TIMESTAMP;
+          attrValue = Buffer.alloc(4);
+          attrValue.writeUInt32BE(Math.floor(Date.now() / 1000), 0);
+          break;
+        default:
+          // Skip unknown attributes
+          continue;
+      }
+
+      if (attrType !== undefined) {
+        // Attribute header: type (1) + length (1) + value
+        const totalLen = 2 + attrValue.length;
+        const attrBuf = Buffer.alloc(totalLen);
+        attrBuf.writeUInt8(attrType, 0);
+        attrBuf.writeUInt8(totalLen, 1);
+        attrValue.copy(attrBuf, 2);
+        attrBuffers.push(attrBuf);
+      }
+    }
+
+    const attrsBuffer = Buffer.concat(attrBuffers);
+
+    // RADIUS packet: Code (1) + Identifier (1) + Length (2) + Authenticator (16) + Attributes
+    const packetLength = 1 + 1 + 2 + 16 + attrsBuffer.length;
+    const packet = Buffer.alloc(packetLength);
+
+    let offset = 0;
+    packet.writeUInt8(RadiusService.CODE_COA_REQUEST, offset); offset += 1;
+    packet.writeUInt8(crypto.randomBytes(1)[0], offset); offset += 1; // Random identifier
+    packet.writeUInt16BE(packetLength, offset); offset += 2;
+    authenticator.copy(packet, offset); offset += 16;
+    attrsBuffer.copy(packet, offset);
+
+    // Compute the Response Authenticator (Message-Authenticator equivalent for CoA)
+    // RADIUS shared secret is applied by appending it to the packet and MD5-hashing
+    const md5Input = Buffer.concat([packet.slice(0, 4), authenticator, attrsBuffer, Buffer.from(nasSecret, 'utf-8')]);
+    const responseAuth = crypto.createHash('md5').update(md5Input).digest();
+
+    // Overwrite the authenticator field with the computed response auth
+    responseAuth.copy(packet, 4);
+
+    return packet;
+  }
+
+  /**
+   * Build a RADIUS Disconnect-Request packet.
+   */
+  private buildDisconnectPacket(
+    attributes: Record<string, any>,
+    nasSecret: string
+  ): Buffer {
+    const authenticator = crypto.randomBytes(16);
+    const attrBuffers: Buffer[] = [];
+
+    for (const [name, value] of Object.entries(attributes)) {
+      let attrType: number | undefined;
+      let attrValue: Buffer;
+
+      switch (name) {
+        case 'User-Name':
+          attrType = RadiusService.ATTR_USERNAME;
+          attrValue = Buffer.from(String(value), 'utf-8');
+          break;
+        case 'NAS-IP-Address':
+          attrType = RadiusService.ATTR_NAS_IP;
+          const ipParts = String(value).split('.').map(Number);
+          attrValue = Buffer.from(ipParts);
+          break;
+        case 'NAS-Port':
+          attrType = RadiusService.ATTR_NAS_PORT;
+          attrValue = Buffer.alloc(4);
+          attrValue.writeUInt32BE(Number(value), 0);
+          break;
+        case 'Calling-Station-Id':
+          attrType = 31;
+          attrValue = Buffer.from(String(value), 'utf-8');
+          break;
+        default:
+          continue;
+      }
+
+      if (attrType !== undefined) {
+        const totalLen = 2 + attrValue.length;
+        const attrBuf = Buffer.alloc(totalLen);
+        attrBuf.writeUInt8(attrType, 0);
+        attrBuf.writeUInt8(totalLen, 1);
+        attrValue.copy(attrBuf, 2);
+        attrBuffers.push(attrBuf);
+      }
+    }
+
+    const attrsBuffer = Buffer.concat(attrBuffers);
+    const packetLength = 1 + 1 + 2 + 16 + attrsBuffer.length;
+    const packet = Buffer.alloc(packetLength);
+
+    let offset = 0;
+    packet.writeUInt8(RadiusService.CODE_DISCONNECT_REQUEST, offset); offset += 1;
+    packet.writeUInt8(crypto.randomBytes(1)[0], offset); offset += 1;
+    packet.writeUInt16BE(packetLength, offset); offset += 2;
+    authenticator.copy(packet, offset); offset += 16;
+    attrsBuffer.copy(packet, offset);
+
+    const md5Input = Buffer.concat([packet.slice(0, 4), authenticator, attrsBuffer, Buffer.from(nasSecret, 'utf-8')]);
+    const responseAuth = crypto.createHash('md5').update(md5Input).digest();
+    responseAuth.copy(packet, 4);
+
+    return packet;
+  }
+
+  /**
+   * Send a RADIUS CoA-Request to a NAS device.
+   * Returns true if the packet was sent successfully (does not wait for CoA-ACK).
+   */
+  async sendCoA(
+    nasIp: string,
+    nasPort: number,
+    attributes: Record<string, any>
+  ): Promise<boolean> {
+    try {
+      const nasSecret = config.radius.secret;
+      const packet = this.buildCoAPacket(attributes, nasSecret);
+
+      return new Promise((resolve) => {
+        const client = dgram.createSocket('udp4');
+        let resolved = false;
+
+        client.send(packet, nasPort || RadiusService.COA_PORT, nasIp, (err) => {
+          if (resolved) return;
+          resolved = true;
+          client.close();
+
+          if (err) {
+            logger.error(`CoA send failed to ${nasIp}:${nasPort}: ${err.message}`);
+            resolve(false);
+          } else {
+            logger.info(`CoA-Request sent to ${nasIp}:${nasPort || RadiusService.COA_PORT}`);
+            resolve(true);
+          }
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          client.close();
+          logger.error(`CoA send timed out to ${nasIp}:${nasPort}`);
+          resolve(false);
+        }, 5000);
+      });
+    } catch (error) {
+      logger.error('CoA error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send a RADIUS Disconnect-Request to a NAS device.
+   */
+  async sendDisconnectRequest(
+    nasIp: string,
+    nasPort: number,
+    attributes: Record<string, any>
+  ): Promise<boolean> {
+    try {
+      const nasSecret = config.radius.secret;
+      const packet = this.buildDisconnectPacket(attributes, nasSecret);
+
+      return new Promise((resolve) => {
+        const client = dgram.createSocket('udp4');
+        let resolved = false;
+
+        client.send(packet, nasPort || RadiusService.COA_PORT, nasIp, (err) => {
+          if (resolved) return;
+          resolved = true;
+          client.close();
+
+          if (err) {
+            logger.error(`Disconnect-Request send failed to ${nasIp}:${nasPort}: ${err.message}`);
+            resolve(false);
+          } else {
+            logger.info(`Disconnect-Request sent to ${nasIp}:${nasPort || RadiusService.COA_PORT}`);
+            resolve(true);
+          }
+        });
+
+        setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          client.close();
+          logger.error(`Disconnect-Request timed out to ${nasIp}:${nasPort}`);
+          resolve(false);
+        }, 5000);
+      });
+    } catch (error) {
+      logger.error('Disconnect-Request error:', error);
+      return false;
+    }
   }
 }
 

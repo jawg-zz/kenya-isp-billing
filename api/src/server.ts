@@ -31,6 +31,7 @@ import healthRoutes from './routes/health.routes';
 import auditRoutes from './routes/audit.routes';
 import settingsRoutes from './routes/settings.routes';
 import adminRoutes from './routes/admin.routes';
+import notificationSSERoutes from './routes/notificationSSE';
 import { startScheduler, stopScheduler } from './workers/scheduler';
 
 const app: Express = express();
@@ -164,6 +165,7 @@ app.use(`${config.apiPrefix}/radius`, radiusRoutes);
 app.use(`${config.apiPrefix}/audit`, auditRoutes);
 app.use(`${config.apiPrefix}/settings`, settingsRoutes);
 app.use(`${config.apiPrefix}/admin`, adminRoutes);
+app.use(`${config.apiPrefix}/notifications/stream`, notificationSSERoutes);
 
 // Error handling
 app.use(notFoundHandler);
