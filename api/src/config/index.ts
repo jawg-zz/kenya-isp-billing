@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -89,8 +90,6 @@ export const validateConfig = (): boolean => {
   // Required core variables
   const required: Record<string, string> = {
     DATABASE_URL: 'PostgreSQL database connection string',
-    JWT_SECRET: 'Secret for signing JWT access tokens',
-    JWT_REFRESH_SECRET: 'Secret for signing JWT refresh tokens',
     RADIUS_SECRET: 'Shared secret for RADIUS authentication',
   };
 
@@ -141,12 +140,20 @@ export const validateConfig = (): boolean => {
 // Validate JWT secret strength (>= 32 chars)
 export const validateJwtSecrets = (): void => {
   if (!config.jwt.secret || config.jwt.secret.length < 32) {
-    console.error('JWT_SECRET must be set and at least 32 characters');
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('FATAL: JWT_SECRET must be set and at least 32 characters in production');
+      process.exit(1);
+    }
+    console.warn('WARNING: JWT_SECRET not set or too short. Generating random secret for development.');
+    config.jwt.secret = crypto.randomBytes(32).toString('hex');
   }
   if (!config.jwt.refreshSecret || config.jwt.refreshSecret.length < 32) {
-    console.error('JWT_REFRESH_SECRET must be set and at least 32 characters');
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('FATAL: JWT_REFRESH_SECRET must be set and at least 32 characters in production');
+      process.exit(1);
+    }
+    console.warn('WARNING: JWT_REFRESH_SECRET not set or too short. Generating random secret for development.');
+    config.jwt.refreshSecret = crypto.randomBytes(32).toString('hex');
   }
 };
 
