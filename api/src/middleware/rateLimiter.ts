@@ -89,10 +89,10 @@ export const rateLimiter = createRateLimiter({
 // Strict rate limiter for auth endpoints with Redis store
 export const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts
+  max: 20, // 20 attempts per 15 minutes
   message: {
     success: false,
-    message: 'Too many authentication attempts, please try again later',
+    message: 'Too many authentication attempts, please try again after 15 minutes',
   },
   standardHeaders: true,
   legacyHeaders: false,
