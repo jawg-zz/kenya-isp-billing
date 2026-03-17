@@ -9,12 +9,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from 'sonner';
 import {
-  Building2,
-  CreditCard,
-  Calculator,
-  Palette,
-  Settings2,
-  Radio,
   Save,
   Loader2,
 } from 'lucide-react';
