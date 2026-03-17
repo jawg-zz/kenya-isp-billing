@@ -14,6 +14,7 @@ import { logger } from './config/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { sanitize } from './middleware/validate';
 import { rateLimiter } from './middleware/rateLimiter';
+import { requestTracing } from './middleware/requestTracing';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -31,6 +32,9 @@ const app: Express = express();
 
 // Trust proxy for rate limiting
 app.set('trust proxy', 1);
+
+// Request tracing (must be first to capture timing for all downstream middleware)
+app.use(requestTracing);
 
 // Security middleware
 app.use(helmet());
