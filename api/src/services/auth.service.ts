@@ -216,13 +216,13 @@ class AuthService {
         jti: string;
       };
 
-      // Check if refresh token exists in database
-      const storedToken = await prisma.refreshToken.findUnique({
-        where: { id: decoded.jti },
+      // Check if refresh token exists in database (compare against hash)
+      const storedToken = await prisma.refreshToken.findFirst({
+        where: { userId: decoded.id },
         include: { user: true },
       });
 
-      if (!storedToken || storedToken.expiresAt < new Date()) {
+      if (!storedToken || storedToken.expiresAt < new Date() || !(await bcrypt.compare(refreshToken, storedToken.token))) {
         throw new UnauthorizedError('Invalid or expired refresh token');
       }
 
@@ -249,13 +249,21 @@ class AuthService {
   // Logout
   async logout(userId: string, refreshToken?: string): Promise<void> {
     if (refreshToken) {
-      // Revoke specific refresh token
-      const token = await prisma.refreshToken.findFirst({
-        where: { token: refreshToken, userId },
+      // Find token by userId and compare against stored hash
+      const tokens = await prisma.refreshToken.findMany({
+        where: { userId },
       });
 
-      if (token) {
-        await prisma.refreshToken.delete({ where: { id: token.id } });
+      let matched: { id: string } | null = null;
+      for (const t of tokens) {
+        if (await bcrypt.compare(refreshToken, t.token)) {
+          matched = t;
+          break;
+        }
+      }
+
+      if (matched) {
+        await prisma.refreshToken.delete({ where: { id: matched.id } });
         await cache.set(`revoked:${refreshToken}`, true, 7 * 24 * 60 * 60);
       }
     } else {
@@ -386,14 +394,15 @@ class AuthService {
       { expiresIn: config.jwt.refreshExpiresIn }
     );
 
-    // Store refresh token in database
+    // Hash refresh token before storing in database
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 8);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
     await prisma.refreshToken.create({
       data: {
         id: tokenId,
-        token: refreshToken,
+        token: hashedRefreshToken,
         userId: user.id,
         expiresAt,
       },

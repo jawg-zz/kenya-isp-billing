@@ -3,6 +3,8 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+import { logger } from './logger';
+
 export const config = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '3000', 10),
@@ -136,9 +138,22 @@ export const validateConfig = (): boolean => {
   return true;
 };
 
+// Validate JWT secret strength (>= 32 chars)
+export const validateJwtSecrets = (): void => {
+  if (!config.jwt.secret || config.jwt.secret.length < 32) {
+    console.error('JWT_SECRET must be set and at least 32 characters');
+    process.exit(1);
+  }
+  if (!config.jwt.refreshSecret || config.jwt.refreshSecret.length < 32) {
+    console.error('JWT_REFRESH_SECRET must be set and at least 32 characters');
+    process.exit(1);
+  }
+};
+
 // Auto-validate on import in non-test environments
 if (process.env.NODE_ENV !== 'test') {
   validateConfig();
+  validateJwtSecrets();
 }
 
 export default config;

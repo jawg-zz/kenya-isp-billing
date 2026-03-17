@@ -33,8 +33,8 @@ export const authenticate = async (
       throw new UnauthorizedError('User not found');
     }
 
-    if (user.accountStatus === 'SUSPENDED' || user.accountStatus === 'TERMINATED') {
-      throw new UnauthorizedError('Account is suspended or terminated');
+    if (user.accountStatus === 'SUSPENDED' || user.accountStatus === 'TERMINATED' || user.accountStatus === 'PENDING_VERIFICATION') {
+      throw new UnauthorizedError('Account is suspended, terminated, or not verified');
     }
 
     req.user = {
