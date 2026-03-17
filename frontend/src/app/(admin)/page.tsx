@@ -152,22 +152,22 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader title="Quick Actions" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Link href="/admin/customers">
+            <Link href="/customers">
               <Button variant="secondary" className="w-full justify-start">
                 <Users className="h-4 w-4 mr-2" /> Customers
               </Button>
             </Link>
-            <Link href="/admin/plans">
+            <Link href="/plans">
               <Button variant="secondary" className="w-full justify-start">
                 <Package className="h-4 w-4 mr-2" /> Plans
               </Button>
             </Link>
-            <Link href="/admin/invoices">
+            <Link href="/invoices/management">
               <Button variant="secondary" className="w-full justify-start">
                 <FileText className="h-4 w-4 mr-2" /> Invoices
               </Button>
             </Link>
-            <Link href="/admin/revenue">
+            <Link href="/revenue">
               <Button variant="secondary" className="w-full justify-start">
                 <TrendingUp className="h-4 w-4 mr-2" /> Revenue
               </Button>
@@ -181,7 +181,7 @@ export default function AdminDashboard() {
             <CardHeader
               title="Recent Payments"
               action={
-                <Link href="/admin/revenue">
+                <Link href="/payments">
                   <Button variant="ghost" size="sm">
                     View All <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
@@ -226,7 +226,7 @@ export default function AdminDashboard() {
             <CardHeader
               title="Recent Invoices"
               action={
-                <Link href="/admin/invoices">
+                <Link href="/invoices/management">
                   <Button variant="ghost" size="sm">
                     View All <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>

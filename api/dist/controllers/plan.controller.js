@@ -17,7 +17,7 @@ class PlanController {
             const plans = await database_1.prisma.plan.findMany({
                 where,
                 include: {
-                    planPrices: { where: { isActive: true } },
+                    planPrices: true,
                 },
                 orderBy: [
                     { sortOrder: 'asc' },
@@ -41,7 +41,7 @@ class PlanController {
             const plan = await database_1.prisma.plan.findUnique({
                 where: { id },
                 include: {
-                    planPrices: { where: { isActive: true } },
+                    planPrices: true,
                 },
             });
             if (!plan) {
@@ -174,7 +174,7 @@ class PlanController {
                     isFeatured: true,
                 },
                 include: {
-                    planPrices: { where: { isActive: true } },
+                    planPrices: true,
                 },
                 orderBy: { sortOrder: 'asc' },
                 take: 6,

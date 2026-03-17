@@ -16,12 +16,11 @@ class PlanController {
       const plans = await prisma.plan.findMany({
         where,
         include: {
-          planPrices: { where: { isActive: true } },
+          planPrices: {
+            where: { isActive: true },
+          },
         },
-        orderBy: [
-          { sortOrder: 'asc' },
-          { price: 'asc' },
-        ],
+        orderBy: { sortOrder: 'asc' },
       });
 
       const response: ApiResponse = {
@@ -43,7 +42,7 @@ class PlanController {
       const plan = await prisma.plan.findUnique({
         where: { id },
         include: {
-          planPrices: { where: { isActive: true } },
+          planPrices: true,
         },
       });
 
@@ -209,7 +208,7 @@ class PlanController {
           isFeatured: true,
         },
         include: {
-          planPrices: { where: { isActive: true } },
+          planPrices: true,
         },
         orderBy: { sortOrder: 'asc' },
         take: 6,

@@ -94,7 +94,7 @@ export default function AdminCustomersPage() {
             <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
             <p className="mt-1 text-gray-600">Manage your customer accounts</p>
           </div>
-          <Link href="/admin/customers/new">
+          <Link href="/customers/new">
             <Button>
               <Plus className="h-4 w-4 mr-2" /> Add Customer
             </Button>
@@ -179,7 +179,7 @@ export default function AdminCustomersPage() {
                   const u = customer.user;
                   const activeSub = customer.subscriptions?.[0];
                   return (
-                    <Link key={customer.id} href={`/admin/customers/${customer.id}`}>
+                    <Link key={customer.id} href={`/customers/${customer.id}`}>
                       <div className="border rounded-lg p-4 hover:bg-gray-50">
                         <div className="flex justify-between items-start">
                           <div>
@@ -251,7 +251,7 @@ export default function AdminCustomersPage() {
                             {format(new Date(customer.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Link href={`/admin/customers/${customer.id}`}>
+                            <Link href={`/customers/${customer.id}`}>
                               <Button size="sm" variant="ghost">
                                 <Eye className="h-4 w-4" />
                               </Button>

@@ -42,11 +42,11 @@ const customerNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { name: 'Overview', href: '/admin', icon: LayoutDashboard },
-  { name: 'Customers', href: '/admin/customers', icon: Users },
-  { name: 'Plans', href: '/admin/plans', icon: Package },
-  { name: 'Invoices', href: '/admin/invoices', icon: FileText },
-  { name: 'Payments', href: '/admin/payments', icon: Receipt },
-  { name: 'Network', href: '/admin/network', icon: Network },
+  { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Plans', href: '/plans', icon: Package },
+  { name: 'Invoices', href: '/invoices/management', icon: FileText },
+  { name: 'Payments', href: '/payments', icon: Receipt },
+  { name: 'Network', href: '/network', icon: Network },
 ];
 
 interface SidebarProps {
