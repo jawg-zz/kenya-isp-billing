@@ -185,14 +185,14 @@ export function TopBar({ user, notifications = 0 }: TopBarProps) {
           {resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
 
-        <button className="relative p-2 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-100">
+        <Link href="/notifications" className="relative p-2 text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-100">
           <Bell className="h-5 w-5" />
           {notifications > 0 && (
             <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
               {notifications}
             </span>
           )}
-        </button>
+        </Link>
         <div className="relative">
           <button
             className="flex items-center gap-3 rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700"

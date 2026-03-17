@@ -1,4 +1,4 @@
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { logger } from '../config/logger';
 import { runInvoiceGeneration } from './invoiceGenerator';
 import { runAutoSuspend } from './autoSuspend';
@@ -8,8 +8,8 @@ import { runUsageReset } from './usageReset';
 interface ScheduledJob {
   name: string;
   schedule: string;
-  handler: () => Promise<void>;
-  cronJob?: cron.ScheduledTask;
+  handler: () => Promise<any>;
+  cronJob?: ScheduledTask;
 }
 
 const jobs: ScheduledJob[] = [

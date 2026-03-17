@@ -116,7 +116,7 @@ router.post('/run-usage-reset', async (req: AuthenticatedRequest, res: Response)
  */
 router.post('/run-job/:jobName', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { jobName } = req.params;
+    const jobName = (req as any).params.jobName;
     logger.info(`[Admin] Manual job trigger: ${jobName} by user ${req.user?.id}`);
 
     const result = await triggerJob(jobName);

@@ -50,7 +50,7 @@ export async function runUsageReset(): Promise<{
         const metadata = (subscription.metadata as Record<string, any>) || {};
 
         // Check if auto-renew is enabled
-        if (subscription.autoRenew && subscription.customer.balance >= Number(subscription.plan.price)) {
+        if (subscription.autoRenew && Number(subscription.customer.balance) >= Number(subscription.plan.price)) {
           // Auto-renew: deduct from balance and extend the subscription
           const newEndDate = new Date(subscription.endDate);
           newEndDate.setDate(newEndDate.getDate() + subscription.plan.validityDays);
