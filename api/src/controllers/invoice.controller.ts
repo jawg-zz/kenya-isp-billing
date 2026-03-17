@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import fs from 'fs';
 import { prisma } from '../config/database';
+import { cache } from '../config/redis';
 import { invoiceService } from '../services/invoice.service';
 import { AuthenticatedRequest, ApiResponse, NotFoundError } from '../types';
 
@@ -246,9 +247,17 @@ class InvoiceController {
     }
   }
 
-  // Get invoice stats (admin)
+  // Get invoice stats (admin) — cached 5 min
   async getInvoiceStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const cacheKey = 'admin:invoice-stats';
+
+      const cached = await cache.get<any>(cacheKey);
+      if (cached) {
+        res.json({ success: true, data: cached });
+        return;
+      }
+
       const [
         totalInvoices,
         paidInvoices,
@@ -275,17 +284,22 @@ class InvoiceController {
         }),
       ]);
 
+      const data = {
+        totalInvoices,
+        paidInvoices,
+        pendingInvoices,
+        overdueInvoices,
+        totalAmount: Number(totalAmount._sum.totalAmount) || 0,
+        paidAmount: Number(paidAmount._sum.totalAmount) || 0,
+        pendingAmount: Number(pendingAmount._sum.totalAmount) || 0,
+      };
+
+      // Cache for 5 minutes
+      await cache.set(cacheKey, data, 300);
+
       const response: ApiResponse = {
         success: true,
-        data: {
-          totalInvoices,
-          paidInvoices,
-          pendingInvoices,
-          overdueInvoices,
-          totalAmount: Number(totalAmount._sum.totalAmount) || 0,
-          paidAmount: Number(paidAmount._sum.totalAmount) || 0,
-          pendingAmount: Number(pendingAmount._sum.totalAmount) || 0,
-        },
+        data,
       };
 
       res.json(response);

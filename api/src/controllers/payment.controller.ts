@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
+import { cache } from '../config/redis';
 import { Decimal } from '@prisma/client/runtime/library';
 import { mpesaService } from '../services/mpesa.service';
 import { airtelService } from '../services/airtel.service';
@@ -109,6 +110,10 @@ class PaymentController {
       }
 
       await mpesaService.processCallback(callback);
+
+      // Invalidate admin revenue/invoice caches on payment completion
+      await cache.invalidatePattern('admin:revenue:*');
+      await cache.del('admin:invoice-stats');
 
       // M-Pesa expects a specific response format
       res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
@@ -275,6 +280,10 @@ class PaymentController {
 
       const callback: AirtelCallback = req.body;
       await airtelService.processCallback(callback);
+
+      // Invalidate admin revenue/invoice caches on payment completion
+      await cache.invalidatePattern('admin:revenue:*');
+      await cache.del('admin:invoice-stats');
 
       res.status(200).json({ status: 'SUCCESS' });
     } catch (error) {
@@ -487,6 +496,10 @@ class PaymentController {
         );
       }
 
+      // Invalidate admin revenue/invoice caches
+      await cache.invalidatePattern('admin:revenue:*');
+      await cache.del('admin:invoice-stats');
+
       const response: ApiResponse = {
         success: true,
         message: 'Cash payment processed successfully',
@@ -499,7 +512,7 @@ class PaymentController {
     }
   }
 
-  // Get payment stats (admin)
+  // Get payment stats (admin) — cached 5 min
   async getPaymentStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const startDate = req.query.startDate
@@ -508,6 +521,16 @@ class PaymentController {
       const endDate = req.query.endDate
         ? new Date(req.query.endDate as string)
         : new Date();
+
+      const periodKey = `${startDate.toISOString()}_${endDate.toISOString()}`;
+      const cacheKey = `admin:revenue:${periodKey}`;
+
+      // Check cache
+      const cached = await cache.get<any>(cacheKey);
+      if (cached) {
+        res.json({ success: true, data: cached });
+        return;
+      }
 
       const [totalRevenue, paymentsByMethod, paymentsByDay] = await Promise.all([
         prisma.payment.aggregate({
@@ -528,7 +551,7 @@ class PaymentController {
           _count: true,
         }),
         prisma.$queryRaw`
-          SELECT 
+          SELECT
             DATE("processedAt") as date,
             SUM(amount) as "totalAmount",
             COUNT(*) as "count"
@@ -541,15 +564,20 @@ class PaymentController {
         ` as Promise<any[]>,
       ]);
 
+      const data = {
+        totalRevenue: Number(totalRevenue._sum.amount) || 0,
+        totalTransactions: totalRevenue._count,
+        paymentsByMethod,
+        paymentsByDay,
+        period: { startDate, endDate },
+      };
+
+      // Cache for 5 minutes
+      await cache.set(cacheKey, data, 300);
+
       const response: ApiResponse = {
         success: true,
-        data: {
-          totalRevenue: Number(totalRevenue._sum.amount) || 0,
-          totalTransactions: totalRevenue._count,
-          paymentsByMethod,
-          paymentsByDay,
-          period: { startDate, endDate },
-        },
+        data,
       };
 
       res.json(response);
