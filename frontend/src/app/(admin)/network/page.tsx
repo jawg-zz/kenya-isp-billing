@@ -160,8 +160,10 @@ export default function AdminNetworkPage() {
     switch (service.status) {
       case 'ok':
       case 'configured':
+      case 'connected':
         return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100', label: 'Healthy' };
       case 'error':
+      case 'disconnected':
         return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-100', label: 'Error' };
       default:
         return { icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-100', label: 'Degraded' };
@@ -230,7 +232,7 @@ export default function AdminNetworkPage() {
               <div>
                 <p className="text-sm text-gray-500">System Status</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {healthLoading ? '...' : health?.status === 'healthy' ? 'Online' : 'Degraded'}
+                  {healthLoading ? '...' : health?.status === 'ok' ? 'Online' : 'Degraded'}
                 </p>
               </div>
             </div>
