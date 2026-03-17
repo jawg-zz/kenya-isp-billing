@@ -89,7 +89,7 @@ export const errorHandler = (
   // Default error
   res.status(500).json({
     success: false,
-    message: config.env === 'production' ? 'Internal server error' : err.message,
+    message: err.message,
   });
 };
 
