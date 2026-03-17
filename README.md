@@ -1,205 +1,302 @@
 # ISP Billing System
 
-A full-stack ISP billing management system built for Kenyan ISPs. Supports M-Pesa and Airtel Money payments, RADIUS authentication, prepaid/postpaid plans, invoicing, and usage tracking.
+A full-stack ISP billing and customer management platform built for Kenyan ISPs. Supports M-Pesa and Airtel Money payments, RADIUS authentication, prepaid/postpaid plans, automated invoicing, usage tracking, and real-time notifications.
 
 ## Tech Stack
 
-**Backend:**
-- Node.js + Express + TypeScript
-- PostgreSQL (via Prisma ORM)
-- Redis (caching & token storage)
-- JWT authentication with refresh token rotation
-- M-Pesa Daraja API integration
-- Airtel Money API integration
-- Africa's Talking SMS gateway
-
-**Frontend:**
-- Next.js 14 (App Router)
-- React 18 + TypeScript
-- TailwindCSS (mobile-first)
-- TanStack Query (data fetching)
-- Zustand (state management)
-- Recharts (analytics charts)
-- Sonner (toast notifications)
-
-**Infrastructure:**
-- Docker & Docker Compose
-- Nginx reverse proxy
-- PostgreSQL 16
-- Redis 7
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | NestJS/Express + TypeScript |
+| **Frontend** | Next.js 14 (App Router) + React 18 + TailwindCSS |
+| **Database** | PostgreSQL 16 via Prisma ORM |
+| **Cache** | Redis 7 (sessions, rate limiting, settings) |
+| **Auth** | JWT (access + refresh token rotation) |
+| **Payments** | M-Pesa Daraja API (STK Push) + Airtel Money |
+| **SMS** | Africa's Talking |
+| **Email** | Nodemailer (SMTP) |
+| **Network** | RADIUS (RFC 2865) + CoA |
+| **PDF** | pdfkit (invoices, reports) |
+| **Charts** | Recharts |
+| **Deploy** | Docker Compose |
 
 ## Features
 
 ### Customer Portal
-- **Dashboard** — Account overview, active plan, recent activity, alerts
-- **Usage Monitoring** — Real-time data usage, progress bar, history
-- **Invoices** — View invoices, filter by status, download PDFs
-- **Payments** — M-Pesa STK Push, Airtel Money, payment history
-- **Profile** — Personal info, password management, address
+- **Dashboard** — Account overview, active plan, balance, alerts
+- **Subscribe** — Browse plans, select billing cycle, pay via M-Pesa/Airtel
+- **Usage** — Real-time data consumption, session history, FUP status
+- **Invoices** — View, filter, download PDF, pay outstanding
+- **Payments** — Payment history, M-Pesa STK push, Airtel Money
+- **Notifications** — Real-time SSE notifications, notification center
+- **Profile** — Personal info, password, email/phone verification
 
-### Admin Panel
-- **Overview** — KPIs: customers, revenue, invoices, overdue alerts
-- **Customer Management** — CRUD, search, suspend/activate, balance adjustment
-- **Plan Management** — Create/edit/deactivate plans with pricing tiers
-- **Invoice Management** — View all invoices, batch generation, status updates
-- **Revenue Analytics** — Payment charts by day/method, transaction history
+### Admin Dashboard
+- **Overview** — KPIs: revenue, customers, overdue invoices, activity feed
+- **Customers** — CRUD, search, suspend/activate, balance adjustment, edit
+- **Plans** — Create/edit/deactivate plans with multi-cycle pricing
+- **Subscriptions** — Table view, search, filter, suspend/activate/cancel
+- **Invoices** — All invoices, batch generation, PDF download, status updates
+- **Payments** — Full payment history, manual recording
+- **Reports** — Customer, usage, and payment analytics with charts + CSV/PDF export
+- **Network** — Active RADIUS sessions, session management
+- **Settings** — Company, payment, billing, branding, operations, API/RADIUS config
+- **Audit Log** — Admin action tracking with old/new values
 
 ### Payment Integration
-- **M-Pesa** — STK Push with automatic callback processing
-- **Airtel Money** — Push payment with callback
-- **Cash** — Manual cash payment recording (admin)
+- **M-Pesa** — STK Push with automatic callback processing, idempotency
+- **Airtel Money** — Push payment with IP allowlist + token validation
+- **Cash/Bank** — Manual recording by admin
 
-## Quick Start
+### Network Integration (RADIUS)
+- **Authentication** — PPPoE and Hotspot support
+- **Session Tracking** — Active sessions, bandwidth, data usage
+- **CoA (RFC 2865)** — Dynamic speed changes, disconnect, re-enable
+- **Auto-provisioning** — Service activate/deactivate on payment events
+- **Fair Usage Policy** — Threshold-based speed reduction
 
-### Prerequisites
+### Automated Billing
+- **Invoice Generation** — Daily at 01:00 AM (cron)
+- **Late Fees** — Daily at 01:30 AM (cron)
+- **Auto-Suspension** — Daily at 02:00 AM for overdue accounts (cron)
+- **Usage Reset** — Daily at midnight (cron)
+
+## Prerequisites
+
 - Docker & Docker Compose
-- Node.js 20+ (for local development)
+- Node.js 20+ (for local development only)
 
-### 1. Environment Setup
+## Quick Start (Docker Compose)
+
+### 1. Clone and Configure
 
 ```bash
-# Copy and edit environment variables
-cp api/.env.example api/.env
-cp frontend/.env.local.example frontend/.env.local
+git clone <your-repo-url>
+cd isp-billing-system
+
+# Create .env file with your secrets
+cp .env.example .env
 ```
 
-Edit `api/.env` with your credentials:
-- Database URL (defaults to Docker Compose postgres)
-- JWT secrets (change in production!)
-- M-Pesa API keys (Safaricom Daraja)
-- Airtel Money API keys
-- Africa's Talking SMS credentials
+Edit `.env` with your values:
 
-### 2. Run with Docker Compose
+```env
+# REQUIRED — Generate with: openssl rand -base64 48
+POSTGRES_PASSWORD=your_strong_db_password
+JWT_SECRET=your_64_char_random_string
+JWT_REFRESH_SECRET=another_64_char_random_string
+RADIUS_SECRET=your_radius_secret
+
+# REQUIRED for production
+CORS_ORIGIN=https://isp.yourdomain.com
+
+# Optional — payments, SMS, email (features won't work without these)
+MPESA_CONSUMER_KEY=
+MPESA_CONSUMER_SECRET=
+MPESA_PASSKEY=
+MPESA_SHORTCODE=
+MPESA_ENVIRONMENT=production
+AT_API_KEY=
+AT_USERNAME=
+SMTP_HOST=
+SMTP_USER=
+SMTP_PASS=
+```
+
+### 2. Start All Services
 
 ```bash
-# Start all services
 docker compose up -d
-
-# Run database migrations & seed
-docker compose exec api npx prisma migrate deploy
-docker compose exec api npx prisma db seed
-
-# Access the application
-# Frontend: http://localhost
-# API: http://localhost/api/v1
 ```
 
-### 3. Local Development
+This starts 4 containers:
+- `isp_billing_postgres` — PostgreSQL database
+- `isp_billing_redis` — Redis cache
+- `isp_billing_api` — Backend API (port 3000 internally)
+- `isp_billing_frontend` — Next.js frontend (port 3000 internally)
+
+### 3. Run Migrations & Seed
 
 ```bash
-# Install dependencies
-cd api && npm install
-cd ../frontend && npm install
+# Apply database migrations
+docker compose exec api npx prisma migrate deploy
 
-# Start database services
-docker compose up -d postgres redis
-
-# Run migrations
-cd api && npx prisma migrate dev
-
-# Start development servers
-# Terminal 1 - API
-cd api && npm run dev
-
-# Terminal 2 - Frontend
-cd frontend && npm run dev
+# Seed default data (admin user, plans, settings)
+docker compose exec api npx prisma db seed
 ```
+
+### 4. Access
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | `http://your-server` |
+| **API** | `http://your-server/api/v1` |
+| **Swagger Docs** | `http://your-server/api/docs` |
+| **Health Check** | `http://your-server/health` |
 
 ## Default Accounts (after seeding)
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@isp.co.ke | admin123 |
-| Customer | customer@test.com | customer123 |
+| Admin | `admin@isp-kenya.co.ke` | `Admin@123456` |
+| Customer | (created via seed) | `Customer@123` |
 
-## API Endpoints
+⚠️ **Change these passwords immediately after first login.**
 
-### Authentication
-- `POST /api/v1/auth/register` — Register
-- `POST /api/v1/auth/login` — Login
-- `POST /api/v1/auth/refresh-token` — Refresh JWT
-- `GET /api/v1/auth/profile` — Get profile
-- `PUT /api/v1/auth/profile` — Update profile
+## Local Development
 
-### Plans
-- `GET /api/v1/plans` — List active plans (public)
-- `GET /api/v1/plans/:id` — Plan details
-- `POST /api/v1/plans` — Create plan (admin)
-- `PUT /api/v1/plans/:id` — Update plan (admin)
-- `DELETE /api/v1/plans/:id` — Deactivate plan (admin)
+### Setup
 
-### Subscriptions
-- `GET /api/v1/subscriptions` — My subscriptions
-- `POST /api/v1/subscriptions` — Subscribe to plan
-- `POST /api/v1/subscriptions/renew` — Renew subscription
-- `POST /api/v1/subscriptions/cancel` — Cancel subscription
+```bash
+# Start only database services
+docker compose up -d postgres redis
 
-### Invoices
-- `GET /api/v1/invoices` — My invoices
-- `GET /api/v1/invoices/:id` — Invoice details
-- `GET /api/v1/invoices/admin/all` — All invoices (admin)
-- `POST /api/v1/invoices/admin/generate` — Batch generate (admin)
+# Install dependencies
+cd api && npm install
+cd ../frontend && npm install
 
-### Payments
-- `POST /api/v1/payments/mpesa/initiate` — M-Pesa STK Push
-- `POST /api/v1/payments/airtel/initiate` — Airtel Money
-- `GET /api/v1/payments/history` — Payment history
-- `POST /api/v1/payments/mpesa/callback` — M-Pesa callback (webhook)
-- `POST /api/v1/payments/airtel/callback` — Airtel callback (webhook)
+# Run migrations
+cd api && npx prisma migrate dev
 
-### Usage
-- `GET /api/v1/usage/summary` — Usage summary
-- `GET /api/v1/usage/realtime` — Real-time stats
-- `GET /api/v1/usage/history` — Usage history
+# Start dev servers
+# Terminal 1 — API
+cd api && npm run dev      # http://localhost:3001
 
-### Customers (Admin)
-- `GET /api/v1/customers` — List customers
-- `POST /api/v1/customers` — Create customer
-- `PUT /api/v1/customers/:id` — Update customer
-- `GET /api/v1/customers/stats` — Customer statistics
+# Terminal 2 — Frontend
+cd frontend && npm run dev # http://localhost:3000
+```
+
+### Environment (Local)
+
+```env
+NODE_ENV=development
+DATABASE_URL=postgresql://isp_billing:isp_billing_password@localhost:5432/isp_billing
+REDIS_URL=redis://localhost:6379
+CORS_ORIGIN=http://localhost:3000
+```
+
+## Production Deployment (Dokploy)
+
+This project is designed for [Dokploy](https://dokploy.com) deployment.
+
+### Setup
+
+1. **Push to GitHub** (already done: `github.com/jawg-zz/kenya-isp-billing`)
+2. **Create Dokploy project** pointing to the repo
+3. **Add environment variables** in Dokploy UI (see `.env.production.example`):
+   - `POSTGRES_PASSWORD` — strong DB password
+   - `JWT_SECRET` — 48+ char random string
+   - `JWT_REFRESH_SECRET` — 48+ char random string
+   - `RADIUS_SECRET` — random hex string
+   - `CORS_ORIGIN` — your production domain
+   - Payment/SMS/SMTP credentials as needed
+4. **Deploy** — Dokploy builds and starts via `docker-compose.yml`
+
+### Required Env Vars for Production
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `POSTGRES_PASSWORD` | ✅ | Database password |
+| `JWT_SECRET` | ✅ | 48+ characters |
+| `JWT_REFRESH_SECRET` | ✅ | 48+ characters |
+| `RADIUS_SECRET` | ✅ | Shared RADIUS secret |
+| `CORS_ORIGIN` | ✅ | Production domain |
+| `NODE_ENV` | ✅ | Auto-set to `production` |
+| `MPESA_*` | ⚠️ | Required for M-Pesa payments |
+| `AIRTEL_*` | ⚠️ | Required for Airtel payments |
+| `AT_*` | ⚠️ | Required for SMS |
+| `SMTP_*` | ⚠️ | Required for emails |
+
+### Generate Secrets
+
+```bash
+openssl rand -base64 48   # JWT_SECRET, JWT_REFRESH_SECRET
+openssl rand -hex 16      # RADIUS_SECRET, POSTGRES_PASSWORD
+```
+
+## API Documentation
+
+Full Swagger docs available at `/api/docs` when running. Major endpoints:
+
+| Category | Endpoints |
+|----------|-----------|
+| **Auth** | Register, login, refresh token, verify email/phone, password reset |
+| **Plans** | CRUD, multi-cycle pricing, featured plans |
+| **Subscriptions** | Subscribe, renew, cancel, admin manage |
+| **Invoices** | List, detail, PDF download, batch generate, admin management |
+| **Payments** | M-Pesa STK push, Airtel Money, manual recording, history |
+| **Customers** | CRUD, search, filter, balance adjustment, stats |
+| **Usage** | Summary, realtime, history, session tracking |
+| **Reports** | Customer trends, usage analytics, payment reports, CSV/PDF export |
+| **Notifications** | In-app, SSE stream, read/unread |
+| **Settings** | Get/update system settings (6 categories) |
+| **RADIUS** | Session list, config management |
+| **Audit** | Admin action log |
 
 ## Project Structure
 
 ```
 isp-billing-system/
-├── api/                    # Backend API
+├── .env.production.example    # Production env reference
+├── PRD.md                     # Product requirements document
+├── PROGRESS.md                # Development progress tracker
+├── docker-compose.yml         # All services definition
+├── api/                       # Backend
 │   ├── src/
-│   │   ├── config/        # Database, Redis, config
-│   │   ├── controllers/   # Route handlers
-│   │   ├── middleware/    # Auth, validation, rate limiting
-│   │   ├── routes/        # Express routes
-│   │   ├── services/      # Business logic (M-Pesa, billing, etc.)
-│   │   ├── validators/    # Zod schemas
-│   │   └── server.ts      # Entry point
+│   │   ├── config/           # Database, Redis, app config
+│   │   ├── controllers/      # Route handlers
+│   │   ├── middleware/        # Auth, validation, rate limiting, audit
+│   │   ├── routes/           # Express routes (20+ route files)
+│   │   ├── services/         # Business logic (billing, M-Pesa, RADIUS, etc.)
+│   │   ├── validators/       # Zod validation schemas
+│   │   ├── workers/          # Cron workers (invoice, suspend, fees, usage)
+│   │   ├── templates/        # PDF templates (invoice, reports)
+│   │   └── server.ts         # Entry point
 │   ├── prisma/
-│   │   └── schema.prisma  # Database schema
+│   │   ├── schema.prisma     # 14 models, full relations
+│   │   └── seed.ts           # Default data
+│   ├── __tests__/            # Test suites
 │   └── Dockerfile
-├── frontend/               # Next.js frontend
+├── frontend/                  # Next.js frontend
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── (auth)/   # Login, register
-│   │   │   ├── (customer)/ # Customer portal
-│   │   │   └── (admin)/  # Admin dashboard
+│   │   │   ├── (auth)/      # Login, register, forgot/reset password, verify
+│   │   │   ├── (admin)/     # Dashboard, customers, plans, invoices, subscriptions, reports, settings
+│   │   │   ├── (customer)/  # Dashboard, subscribe, usage, invoices, payments, profile
+│   │   │   └── notifications/
 │   │   ├── components/
-│   │   │   ├── ui/       # Reusable components
-│   │   │   └── layout/   # Sidebar, TopBar
-│   │   └── lib/          # API client, auth context
+│   │   │   ├── ui/          # Input, Button, Card, Table, Badge, etc.
+│   │   │   ├── layout/      # Sidebar, navigation
+│   │   │   ├── charts/      # Revenue, analytics charts
+│   │   │   └── widgets/     # Stat cards, activity feed
+│   │   └── lib/
+│   │       ├── api.ts       # API client
+│   │       ├── auth.tsx     # Auth context + provider
+│   │       ├── validation.ts # Form validation utils
+│   │       ├── api-errors.ts # Error handling
+│   │       └── hooks/       # useFormValidation, useNotificationSSE
 │   └── Dockerfile
-├── database/
-│   └── schema.prisma     # Shared schema reference
-├── nginx/
-│   └── nginx.conf        # Reverse proxy config
-├── docker-compose.yml
 └── README.md
 ```
+
+## Database Schema
+
+14 models covering the full system: `User`, `Customer`, `Plan`, `PlanPrice`, `Subscription`, `Invoice`, `Payment`, `RadiusConfig`, `RadiusSession`, `UsageRecord`, `Notification`, `SystemSetting`, `AuditLog`, `RefreshToken`.
+
+See `api/prisma/schema.prisma` for the complete schema.
+
+## Documentation
+
+- **[PRD.md](./PRD.md)** — Full product requirements (17 sections)
+- **[PROGRESS.md](./PROGRESS.md)** — Development progress tracker (90% complete)
+- **Swagger** — Interactive API docs at `/api/docs`
 
 ## Currency & Localization
 
 - Default currency: **KES** (Kenyan Shillings)
-- Tax rate: **16% VAT** (Kenya standard)
+- Tax rate: **16% VAT** (Kenya Revenue Authority standard)
 - Timezone: **Africa/Nairobi (EAT, UTC+3)**
-- Payment methods: M-Pesa, Airtel Money, Cash
+- Counties: All 47 Kenyan counties supported
+- Phone format: `+254XXXXXXXXX` (normalized automatically)
 
 ## License
 
