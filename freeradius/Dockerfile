@@ -13,10 +13,9 @@ RUN apt-get update && apt-get install -y \
 # Copy configuration files
 COPY radiusd.conf /etc/freeradius/3.0/radiusd.conf
 COPY clients.conf /etc/freeradius/3.0/clients.conf
-COPY mods-available/sql /etc/freeradius/3.0/mods-available/sql
 COPY mods-available/rest /etc/freeradius/3.0/mods-available/rest
 
-# Enable SQL and REST modules
+# Enable SQL (from freeradius-postgresql package) and REST modules
 RUN ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql && \
     ln -sf /etc/freeradius/3.0/mods-available/rest /etc/freeradius/3.0/mods-enabled/rest 2>/dev/null || true
 
