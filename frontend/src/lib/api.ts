@@ -405,8 +405,13 @@ class ApiClient {
   }
 
   async getHealthDetailed() {
-    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/health');
-    return data;
+    const { data } = await this.client.get<{
+      status: string;
+      timestamp: string;
+      services: Record<string, { status: string; latencyMs?: number }>;
+    }>('/health');
+    // Health endpoint returns direct data, not ApiResponse wrapper
+    return { success: true, data };
   }
 }
 
