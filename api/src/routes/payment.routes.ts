@@ -35,11 +35,13 @@ router.post('/mpesa/initiate', paymentRateLimiter, validate(mpesaSTKPushSchema),
 router.get('/mpesa/status/:paymentId', paymentController.checkMpesaStatus);
 router.post('/airtel/initiate', paymentRateLimiter, validate(airtelPaymentSchema), paymentController.initiateAirtelPayment);
 router.get('/history', paymentController.getPaymentHistory);
-router.get('/:id', paymentController.getPayment);
 
-// Admin routes
+// Admin routes (defined BEFORE /:id to avoid route conflicts)
+router.get('/stats', authorize('ADMIN', 'SUPPORT'), paymentController.getPaymentStats);
 router.get('/', authorize('ADMIN', 'SUPPORT'), paymentController.getAllPayments);
 router.post('/cash', authorize('ADMIN', 'SUPPORT'), validate(cashPaymentSchema), paymentController.processCashPayment);
-router.get('/stats', authorize('ADMIN', 'SUPPORT'), paymentController.getPaymentStats);
+
+// Dynamic route LAST
+router.get('/:id', paymentController.getPayment);
 
 export default router;
