@@ -1,0 +1,66 @@
+sql {
+    driver = "rlm_sql_postgresql"
+    dialect = "postgresql"
+
+    server = "postgres"
+    port = 5432
+    login = "isp_billing"
+    password = "CHANGEME"
+    radius_db = "isp_billing"
+
+    acct_table1 = "radacct"
+    acct_table2 = "radacct"
+    postauth_table = "radpostauth"
+    group_table = "radusergroup"
+
+    read_clients = yes
+    client_table = "nas"
+
+    pool {
+        start = 5
+        min = 4
+        max = 10
+        spare = 3
+        uses = 0
+        lifetime = 0
+        idle_timeout = 60
+    }
+
+    read_groups = yes
+
+    authorize_check_query = "SELECT id, username, attribute, value, op FROM radcheck WHERE username = '%{SQL-User-Name}' ORDER BY id"
+    authorize_reply_query = "SELECT id, username, attribute, value, op FROM radreply WHERE username = '%{SQL-User-Name}' ORDER BY id"
+    authorize_group_check_query = "SELECT id, groupname, attribute, value, op FROM radgroupcheck WHERE groupname = '%{SQL-Group}' ORDER BY id"
+    authorize_group_reply_query = "SELECT id, groupname, attribute, value, op FROM radgroupreply WHERE groupname = '%{SQL-Group}' ORDER BY id"
+    group_membership_query = "SELECT groupname FROM radusergroup WHERE username = '%{SQL-User-Name}' ORDER BY priority"
+    simul_count_query = "SELECT COUNT(*) FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
+    simul_verify_query = "SELECT radacctid, acctsessionid, nasipaddress, nasportid, framedipaddress FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
+
+    accounting {
+        reference = "%{tolower:type.%{Acct-Status-Type}.query}"
+        type {
+            accounting-on {
+                query = "UPDATE radacct SET acctstoptime = NOW(), acctupdatetime = NOW(), acctsessiontime = EXTRACT(EPOCH FROM (NOW() - acctstarttime)), acctterminatecause = '%{Acct-Terminate-Cause}' WHERE acctstoptime IS NULL AND nasipaddress = '%{NAS-IP-Address}' AND acctstarttime <= NOW()"
+            }
+            accounting-off {
+                query = "UPDATE radacct SET acctstoptime = NOW(), acctupdatetime = NOW(), acctsessiontime = EXTRACT(EPOCH FROM (NOW() - acctstarttime)), acctterminatecause = '%{Acct-Terminate-Cause}' WHERE acctstoptime IS NULL AND nasipaddress = '%{NAS-IP-Address}' AND acctstarttime <= NOW()"
+            }
+            start {
+                query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop, acctinputoctets, acctoutputoctets, calledstationid, callingstationid, acctterminatecause, servicetype, framedprotocol, framedipaddress) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', NULLIF('%{Realm}', ''), '%{NAS-IP-Address}', NULLIF('%{NAS-Port-ID}', ''), '%{NAS-Port-Type}', NOW(), NOW(), NULL, 0, '%{Acct-Authentic}', '%{Connect-Info}', NULL, 0, 0, '%{Called-Station-Id}', '%{Calling-Station-Id}', NULL, '%{Service-Type}', '%{Framed-Protocol}', NULLIF('%{Framed-IP-Address}', '')) ON CONFLICT (acctuniqueid) DO UPDATE SET acctstarttime = NOW(), acctupdatetime = NOW(), connectinfo_start = '%{Connect-Info}' WHERE radacct.acctuniqueid = '%{Acct-Unique-Session-Id}' AND radacct.acctstoptime IS NULL"
+            }
+            interim-update {
+                query = "UPDATE radacct SET acctupdatetime = NOW(), acctsessiontime = '%{Acct-Session-Time}', acctinputoctets = '%{Acct-Input-Octets}', acctoutputoctets = '%{Acct-Output-Octets}', framedipaddress = NULLIF('%{Framed-IP-Address}', '') WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND acctstoptime IS NULL"
+            }
+            stop {
+                query = "UPDATE radacct SET acctstoptime = NOW(), acctupdatetime = NOW(), acctsessiontime = COALESCE('%{Acct-Session-Time}', EXTRACT(EPOCH FROM (NOW() - acctstarttime))), acctinputoctets = '%{Acct-Input-Octets}', acctoutputoctets = '%{Acct-Output-Octets}', acctterminatecause = '%{Acct-Terminate-Cause}', framedipaddress = NULLIF('%{Framed-IP-Address}', ''), connectinfo_stop = '%{Connect-Info}' WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND acctstoptime IS NULL"
+            }
+        }
+    }
+
+    post-auth {
+        query = "INSERT INTO radpostauth (username, pass, reply, authdate) VALUES ('%{User-Name}', '%{%{User-Password}:-%{Chap-Password}}', '%{reply:Packet-Type}', NOW())"
+    }
+
+    safe_characters = "@abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_: /"
+    auto_escape = no
+}

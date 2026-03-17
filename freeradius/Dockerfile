@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install FreeRADIUS + PostgreSQL client + curl
+# Install FreeRADIUS + PostgreSQL client (no REST module needed)
 RUN apt-get update && apt-get install -y \
     freeradius \
     freeradius-postgresql \
@@ -10,16 +10,19 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy configuration files
+# Remove EAP module (not needed for PAP, causes ${max_requests} error)
+# Remove REST module (not installed, not needed)
+RUN rm -f /etc/freeradius/3.0/mods-enabled/eap \
+          /etc/freeradius/3.0/mods-enabled/rest \
+          /etc/freeradius/3.0/mods-available/rest
+
+# Copy custom configuration files
 COPY radiusd.conf /etc/freeradius/3.0/radiusd.conf
 COPY clients.conf /etc/freeradius/3.0/clients.conf
-COPY mods-available/rest /etc/freeradius/3.0/mods-available/rest
+COPY mods-available/sql /etc/freeradius/3.0/mods-available/sql
 
-# Enable SQL (from freeradius-postgresql package) and REST modules
-# Disable EAP (not needed for PAP auth) and eap to avoid ${max_requests} error
-RUN ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql && \
-    ln -sf /etc/freeradius/3.0/mods-available/rest /etc/freeradius/3.0/mods-enabled/rest 2>/dev/null || true
-RUN rm -f /etc/freeradius/3.0/mods-enabled/eap
+# Enable SQL module
+RUN ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql
 
 # Copy entrypoint script
 COPY scripts/entrypoint.sh /docker-entrypoint.sh

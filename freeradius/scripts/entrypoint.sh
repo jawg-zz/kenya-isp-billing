@@ -11,32 +11,15 @@ RADIUS_SECRET="${RADIUS_SECRET:-changeme_use_strong_secret}"
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
-# Configure SQL module for PostgreSQL (Ubuntu default uses sqlite)
-SQLCONF="${RADDIR}/mods-available/sql"
-if [ -f "$SQLCONF" ]; then
-    sed -i 's/driver = "rlm_sql_sqlite"/driver = "rlm_sql_postgresql"/' "$SQLCONF"
-    sed -i 's/dialect = "sqlite"/dialect = "postgresql"/' "$SQLCONF"
-    sed -i "s|path = \"/etc/freeradius/3.0/mods-config/sql/main/sqlite\"|path = \"/etc/freeradius/3.0/mods-config/sql/main/postgresql\"|" "$SQLCONF"
-    sed -i "s/server = \"localhost\"/server = \"${RADIUS_DB_HOST}\"/" "$SQLCONF"
-    sed -i "s/port = 3306/port = ${RADIUS_DB_PORT}/" "$SQLCONF"
-    sed -i "s/login = \"radius\"/login = \"${POSTGRES_USER}\"/" "$SQLCONF"
-    sed -i "s/password = \"radpass\"/password = \"${POSTGRES_PASSWORD}\"/" "$SQLCONF"
-    sed -i "s/radius_db = \"radius\"/radius_db = \"${POSTGRES_DB}\"/" "$SQLCONF"
-    sed -i 's/read_clients = no/read_clients = yes/' "$SQLCONF"
-    echo "✅ SQL module configured for PostgreSQL"
-fi
+# Configure SQL module with real credentials
+sed -i "s|server = \"postgres\"|server = \"${RADIUS_DB_HOST}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|port = 5432|port = ${RADIUS_DB_PORT}|" "${RADDIR}/mods-available/sql"
+sed -i "s|login = \"isp_billing\"|login = \"${POSTGRES_USER}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|password = \"CHANGEME\"|password = \"${POSTGRES_PASSWORD}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|radius_db = \"isp_billing\"|radius_db = \"${POSTGRES_DB}\"|" "${RADDIR}/mods-available/sql"
 
-# Substitute environment variables into configs
+# Configure clients with real secret
 sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" "${RADDIR}/clients.conf"
-sed -i "s|\${sql_server}|${RADIUS_DB_HOST}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
-sed -i "s|\${sql_port}|${RADIUS_DB_PORT}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
-sed -i "s|\${sql_login}|${POSTGRES_USER}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
-sed -i "s|\${sql_password}|${POSTGRES_PASSWORD}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
-sed -i "s|\${sql_radius_db}|${POSTGRES_DB}|g" "${RADDIR}/mods-enabled/sql" 2>/dev/null || true
-
-# Substitute REST API URL
-REST_API_URL="${REST_API_URL:-http://api:3000/api/v1}"
-sed -i "s|\${rest_api_url}|${REST_API_URL}|g" "${RADDIR}/mods-enabled/rest" 2>/dev/null || true
 
 echo "🔄 Waiting for PostgreSQL at ${RADIUS_DB_HOST}:${RADIUS_DB_PORT}..."
 retries=30
@@ -132,15 +115,27 @@ CREATE TABLE IF NOT EXISTS radacct (
     servicetype         VARCHAR(32),
     framedprotocol      VARCHAR(32),
     framedipaddress     VARCHAR(15),
+    acctauthentic       VARCHAR(32),
+    connectinfo_start   VARCHAR(50),
+    connectinfo_stop    VARCHAR(50),
     framedipv6address   VARCHAR(45),
     framedipv6prefix    VARCHAR(45),
     framedinterfaceid   VARCHAR(44),
     delegatedipv6prefix VARCHAR(45)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS radacct_acctuniqueid ON radacct(acctuniqueid);
 CREATE INDEX IF NOT EXISTS radacct_username ON radacct(username);
 CREATE INDEX IF NOT EXISTS radacct_acctsessionid ON radacct(acctsessionid);
-CREATE INDEX IF NOT EXISTS radacct_acctuniqueid ON radacct(acctuniqueid);
 CREATE INDEX IF NOT EXISTS radacct_nasipaddress ON radacct(nasipaddress);
+
+CREATE TABLE IF NOT EXISTS radpostauth (
+    id          SERIAL PRIMARY KEY,
+    username    VARCHAR(64) NOT NULL DEFAULT '',
+    pass        VARCHAR(64),
+    reply       VARCHAR(32),
+    authdate    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS radpostauth_username ON radpostauth(username);
 
 -- Insert default NAS entries
 INSERT INTO nas (nasname, shortname, type, secret, description)
@@ -154,6 +149,5 @@ WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'isp_billing_api');
 EOSQL
 
 echo "✅ FreeRADIUS tables ready"
-
 echo "🚀 Starting FreeRADIUS in debug mode..."
 exec freeradius -f -X
