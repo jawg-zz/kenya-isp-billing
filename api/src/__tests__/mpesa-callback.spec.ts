@@ -74,7 +74,7 @@ function buildCallback(overrides: Partial<MpesaCallback['Body']['stkCallback']> 
 // ─── Tests ──────────────────────────────────────────────────────────────
 
 describe('M-Pesa callback', () => {
-  let prismaMock: ReturnType<typeof import('../config/database')['prisma']>;
+  let prismaMock: typeof import('../config/database')['prisma'];
   let txMock: any;
 
   beforeEach(async () => {

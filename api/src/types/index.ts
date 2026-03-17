@@ -190,9 +190,9 @@ export class NotFoundError extends AppError {
 export class ValidationError extends AppError {
   public errors: Record<string, string[]>;
 
-  constructor(errors: Record<string, string[]>) {
+  constructor(errors: Record<string, string[]> | string) {
     super('Validation failed', 400);
-    this.errors = errors;
+    this.errors = typeof errors === 'string' ? { _errors: [errors] } : errors;
   }
 }
 
