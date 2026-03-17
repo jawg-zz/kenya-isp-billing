@@ -173,7 +173,7 @@ export default function CustomerDetailPage() {
                   <FileText className="h-4 w-4 mr-2" /> View Invoices
                 </Button>
               </Link>
-              <Link href="/payments">
+              <Link href="/invoices/management">
                 <Button variant="outline" className="w-full justify-start">
                   <CreditCard className="h-4 w-4 mr-2" /> View Payments
                 </Button>

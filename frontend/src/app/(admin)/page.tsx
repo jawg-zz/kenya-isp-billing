@@ -181,7 +181,7 @@ export default function AdminDashboard() {
             <CardHeader
               title="Recent Payments"
               action={
-                <Link href="/payments">
+                <Link href="/invoices/management">
                   <Button variant="ghost" size="sm">
                     View All <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
