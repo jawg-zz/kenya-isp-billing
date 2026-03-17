@@ -1,6 +1,7 @@
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Activity } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Card, CardHeader } from '../ui/Card';
+import { EmptyState } from '../ui/EmptyState';
 import { clsx } from 'clsx';
 
 interface ActivityItem {
@@ -16,15 +17,16 @@ interface ActivityFeedProps {
   title?: string;
   items: ActivityItem[];
   emptyMessage?: string;
+  emptyDescription?: string;
   viewAllHref?: string;
 }
 
 const colorClasses = {
   blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  green: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-  yellow: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400',
+  green: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+  yellow: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   red: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
-  purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+  purple: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400',
   gray: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
 };
 
@@ -32,6 +34,7 @@ export function ActivityFeed({
   title = 'Recent Activity',
   items,
   emptyMessage = 'No recent activity',
+  emptyDescription,
   viewAllHref,
 }: ActivityFeedProps) {
   return (
@@ -42,7 +45,7 @@ export function ActivityFeed({
           viewAllHref ? (
             <a
               href={viewAllHref}
-              className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+              className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
             >
               View all
             </a>
@@ -51,7 +54,11 @@ export function ActivityFeed({
       />
 
       {items.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400 py-8">{emptyMessage}</p>
+        <EmptyState
+          icon={Activity}
+          title={emptyMessage}
+          description={emptyDescription || "Activity will appear here as it happens."}
+        />
       ) : (
         <div className="space-y-4">
           {items.map((item) => {
@@ -60,10 +67,10 @@ export function ActivityFeed({
               : item.timestamp;
 
             return (
-              <div key={item.id} className="flex gap-3">
+              <div key={item.id} className="flex gap-3 group">
                 <div
                   className={clsx(
-                    'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
+                    'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-110',
                     colorClasses[item.color || 'gray']
                   )}
                 >
@@ -78,7 +85,7 @@ export function ActivityFeed({
                       {item.description}
                     </p>
                   )}
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                     {formatDistanceToNow(timestamp, { addSuffix: true })}
                   </p>
                 </div>

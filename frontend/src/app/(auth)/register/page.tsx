@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { Wifi, Eye, EyeOff } from 'lucide-react';
+import { Wifi, Eye, EyeOff, UserPlus } from 'lucide-react';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -61,7 +61,7 @@ export default function RegisterPage() {
         postalCode: form.postalCode || undefined,
       });
       toast.success('Registration successful!');
-      
+
       // Redirect based on user role
       if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
         router.push('/customers');
@@ -77,17 +77,17 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-100 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-primary-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 py-8">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-500/25">
             <Wifi className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
-          <p className="mt-2 text-gray-600">Sign up for ISP Billing Portal</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Create Account</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Sign up for ISP Billing Portal</p>
         </div>
 
-        <Card>
+        <Card hover>
           <CardHeader title="Sign Up" description="Fill in your details to create an account" />
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -145,7 +145,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -162,8 +162,9 @@ export default function RegisterPage() {
               autoComplete="new-password"
             />
 
-            <hr className="my-2" />
-            <p className="text-sm font-medium text-gray-700">Address (optional)</p>
+            <div className="pt-2">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Address (optional)</p>
+            </div>
 
             <Input
               label="Address"
@@ -198,14 +199,15 @@ export default function RegisterPage() {
             </div>
 
             <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+              {!isLoading && <UserPlus className="h-4 w-4 mr-2" />}
               Create Account
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500">
+              <Link href="/login" className="font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
                 Sign in
               </Link>
             </p>

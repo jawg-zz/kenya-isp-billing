@@ -8,6 +8,8 @@ import { MainLayout } from '@/components/layout/Sidebar';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { StatCard } from '@/components/widgets/StatCard';
 import { format } from 'date-fns';
 import { BarChart3, ArrowDown, ArrowUp, Activity, Wifi } from 'lucide-react';
 
@@ -74,96 +76,75 @@ export default function UsagePage() {
     <MainLayout user={user}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Data Usage</h1>
-          <p className="mt-1 text-gray-600">Monitor your data consumption and usage history</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Data Usage</h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">Monitor your data consumption and usage history</p>
         </div>
 
         {/* Usage Overview */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-primary-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Total Allowance</p>
-                <p className="text-lg font-semibold">
-                  {dataAllowance > 0 ? formatBytes(dataAllowance) : 'Unlimited'}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-red-100 rounded-lg">
-                <ArrowUp className="h-6 w-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Used</p>
-                <p className="text-lg font-semibold">{formatBytes(dataUsed)}</p>
-                <p className="text-xs text-gray-500">{percentUsed.toFixed(1)}%</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <ArrowDown className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Remaining</p>
-                <p className="text-lg font-semibold">
-                  {dataAllowance > 0 ? formatBytes(dataRemaining) : '—'}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <p className="text-lg font-semibold">
-                  {usage?.isFupThresholdReached ? (
-                    <Badge variant="warning">FUP Reached</Badge>
-                  ) : (
-                    <Badge variant="success">Normal</Badge>
-                  )}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <StatCard
+            title="Total Allowance"
+            value={dataAllowance > 0 ? formatBytes(dataAllowance) : 'Unlimited'}
+            icon={BarChart3}
+            color="blue"
+            loading={usageLoading}
+          />
+          <StatCard
+            title="Used"
+            value={formatBytes(dataUsed)}
+            subtitle={`${percentUsed.toFixed(1)}%`}
+            icon={ArrowUp}
+            color="red"
+            loading={usageLoading}
+          />
+          <StatCard
+            title="Remaining"
+            value={dataAllowance > 0 ? formatBytes(dataRemaining) : '—'}
+            icon={ArrowDown}
+            color="green"
+            loading={usageLoading}
+          />
+          <StatCard
+            title="Status"
+            value={usage?.isFupThresholdReached ? 'FUP Reached' : 'Normal'}
+            icon={Activity}
+            color={usage?.isFupThresholdReached ? 'yellow' : 'green'}
+            loading={usageLoading}
+          />
         </div>
 
         {/* Usage Progress */}
         {dataAllowance > 0 && (
-          <Card>
+          <Card hover>
             <CardHeader title="Usage Progress" />
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">{formatBytes(dataUsed)} of {formatBytes(dataAllowance)}</span>
-                <span className={`font-medium ${percentUsed > 90 ? 'text-red-600' : percentUsed > 70 ? 'text-yellow-600' : 'text-green-600'}`}>
+                <span className="text-gray-600 dark:text-gray-400">{formatBytes(dataUsed)} of {formatBytes(dataAllowance)}</span>
+                <span className={`font-semibold ${
+                  percentUsed > 90 ? 'text-red-600 dark:text-red-400' :
+                  percentUsed > 70 ? 'text-amber-600 dark:text-amber-400' :
+                  'text-emerald-600 dark:text-emerald-400'
+                }`}>
                   {percentUsed.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+              <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${
-                    percentUsed > 90 ? 'bg-red-500' : percentUsed > 70 ? 'bg-yellow-500' : 'bg-green-500'
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${
+                    percentUsed > 90 ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                    percentUsed > 70 ? 'bg-gradient-to-r from-amber-500 to-amber-600' :
+                    'bg-gradient-to-r from-emerald-500 to-emerald-600'
                   }`}
                   style={{ width: `${Math.min(percentUsed, 100)}%` }}
                 />
               </div>
               {plan?.fupThreshold && (
-                <p className="text-xs text-gray-500">
-                  Fair Usage Policy threshold: {formatBytes(Number(plan.fupThreshold))}
-                  {plan.fupSpeedLimit && ` (speed reduced to ${plan.fupSpeedLimit} Mbps after)`}
-                </p>
+                <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-xl">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Fair Usage Policy threshold: {formatBytes(Number(plan.fupThreshold))}
+                    {plan.fupSpeedLimit && ` (speed reduced to ${plan.fupSpeedLimit} Mbps after)`}
+                  </p>
+                </div>
               )}
             </div>
           </Card>
@@ -171,26 +152,26 @@ export default function UsagePage() {
 
         {/* Real-time Stats */}
         {realtime && (
-          <Card>
+          <Card hover>
             <CardHeader title="Current Session" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Download</p>
-                <p className="text-lg font-semibold">{formatBytes(Number((realtime as Record<string, unknown>).totalDownload || 0))}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Download</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(Number((realtime as Record<string, unknown>).totalDownload || 0))}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Upload</p>
-                <p className="text-lg font-semibold">{formatBytes(Number((realtime as Record<string, unknown>).totalUpload || 0))}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Upload</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatBytes(Number((realtime as Record<string, unknown>).totalUpload || 0))}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Session Time</p>
-                <p className="text-lg font-semibold">{(realtime as Record<string, unknown>).sessionTime || '0m'}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Session Time</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{(realtime as Record<string, unknown>).sessionTime || '0m'}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-medium">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className={`h-2.5 w-2.5 rounded-full animate-pulse ${(realtime as Record<string, unknown>).isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
                     {(realtime as Record<string, unknown>).isActive ? 'Connected' : 'Offline'}
                   </span>
                 </div>
@@ -201,20 +182,20 @@ export default function UsagePage() {
 
         {/* Active Plan Info */}
         {activeSub && plan && (
-          <Card>
+          <Card hover>
             <CardHeader title="Plan Details" action={<Wifi className="h-5 w-5 text-gray-400" />} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Plan</p>
-                <p className="font-medium">{plan.name as string}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Plan</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{plan.name as string}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Speed</p>
-                <p className="font-medium">{plan.speedLimit ? `${plan.speedLimit} Mbps` : 'Unlimited'}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Speed</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{plan.speedLimit ? `${plan.speedLimit} Mbps` : 'Unlimited'}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Period</p>
-                <p className="font-medium text-sm">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Period</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
                   {format(new Date(activeSub.startDate as string), 'MMM d')} — {format(new Date(activeSub.endDate as string), 'MMM d, yyyy')}
                 </p>
               </div>
@@ -226,34 +207,81 @@ export default function UsagePage() {
         <Card>
           <CardHeader title="Usage History" description="Recent data usage records" />
           {historyLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full" />
+            <div className="space-y-3 p-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-4 py-2 animate-pulse">
+                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-4 flex-1 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-4 flex-1 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-4 flex-1 bg-gray-200 dark:bg-gray-700 rounded" />
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                </div>
+              ))}
             </div>
           ) : (history as Record<string, unknown>[]).length === 0 ? (
-            <p className="text-center text-gray-500 py-8">No usage records found</p>
+            <EmptyState
+              icon={Activity}
+              title="No usage records"
+              description="Your data usage history will appear here once you start using your connection."
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Download</TableHead>
-                  <TableHead>Upload</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>IP Address</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(history as Record<string, unknown>[]).map((record: Record<string, unknown>) => (
-                  <TableRow key={record.id as string}>
-                    <TableCell>{format(new Date(record.timestamp as string), 'MMM d, HH:mm')}</TableCell>
-                    <TableCell>{formatBytes(Number(record.outputOctets || 0))}</TableCell>
-                    <TableCell>{formatBytes(Number(record.inputOctets || 0))}</TableCell>
-                    <TableCell className="font-medium">{formatBytes(Number(record.totalOctets || 0))}</TableCell>
-                    <TableCell className="text-gray-500">{(record.ipAddress as string) || '—'}</TableCell>
-                  </TableRow>
+            <>
+              {/* Mobile view */}
+              <div className="block lg:hidden space-y-3 p-1">
+                {(history as Record<string, unknown>[]).slice(0, 10).map((record: Record<string, unknown>) => (
+                  <div key={record.id as string} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {format(new Date(record.timestamp as string), 'MMM d, HH:mm')}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{(record.ipAddress as string) || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">↓ Download</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatBytes(Number(record.outputOctets || 0))}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">↑ Upload</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatBytes(Number(record.inputOctets || 0))}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">{formatBytes(Number(record.totalOctets || 0))}</p>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop view */}
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Download</TableHead>
+                      <TableHead>Upload</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>IP Address</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(history as Record<string, unknown>[]).map((record: Record<string, unknown>) => (
+                      <TableRow key={record.id as string} className="group">
+                        <TableCell className="text-gray-600 dark:text-gray-400">{format(new Date(record.timestamp as string), 'MMM d, HH:mm')}</TableCell>
+                        <TableCell className="text-gray-900 dark:text-white">{formatBytes(Number(record.outputOctets || 0))}</TableCell>
+                        <TableCell className="text-gray-900 dark:text-white">{formatBytes(Number(record.inputOctets || 0))}</TableCell>
+                        <TableCell className="font-semibold text-gray-900 dark:text-white">{formatBytes(Number(record.totalOctets || 0))}</TableCell>
+                        <TableCell className="text-gray-500 dark:text-gray-400">{(record.ipAddress as string) || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </Card>
       </div>

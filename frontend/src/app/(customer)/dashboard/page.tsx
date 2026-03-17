@@ -9,6 +9,8 @@ import { MainLayout } from '@/components/layout/Sidebar';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { StatCard } from '@/components/widgets/StatCard';
 import { format } from 'date-fns';
 import {
   BarChart3,
@@ -19,6 +21,7 @@ import {
   ArrowRight,
   Clock,
   AlertCircle,
+  Package,
 } from 'lucide-react';
 
 function formatBytes(bytes: number): string {
@@ -39,7 +42,7 @@ function formatKES(amount: number): string {
 export default function CustomerDashboard() {
   const { user } = useAuth();
 
-  const { data: usageData } = useQuery({
+  const { data: usageData, isLoading: usageLoading } = useQuery({
     queryKey: ['usage-summary'],
     queryFn: async () => {
       const res = await api.getUsageSummary();
@@ -48,7 +51,7 @@ export default function CustomerDashboard() {
     refetchInterval: 30000,
   });
 
-  const { data: invoicesData } = useQuery({
+  const { data: invoicesData, isLoading: invoicesLoading } = useQuery({
     queryKey: ['invoices', { limit: 5 }],
     queryFn: async () => {
       const res = await api.getInvoices({ limit: 5 });
@@ -56,7 +59,7 @@ export default function CustomerDashboard() {
     },
   });
 
-  const { data: paymentsData } = useQuery({
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
     queryKey: ['payments', { limit: 5 }],
     queryFn: async () => {
       const res = await api.getPaymentHistory({ limit: 5 });
@@ -64,7 +67,7 @@ export default function CustomerDashboard() {
     },
   });
 
-  const { data: subscriptionsData } = useQuery({
+  const { data: subscriptionsData, isLoading: subsLoading } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: async () => {
       const res = await api.getSubscriptions();
@@ -84,86 +87,53 @@ export default function CustomerDashboard() {
   return (
     <MainLayout user={user}>
       <div className="space-y-6">
-        {/* Welcome */}
+        {/* Welcome Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
             Welcome back, {user.firstName}!
           </h1>
-          <p className="mt-1 text-gray-600">
+          <p className="mt-1 text-gray-600 dark:text-gray-400">
             Here&apos;s an overview of your account
           </p>
         </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 p-3 bg-primary-100 rounded-lg">
-                <Wifi className="h-6 w-6 text-primary-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Current Plan</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {plan?.name || 'No Plan'}
-                </p>
-                {activeSub && (
-                  <StatusBadge status={activeSub.status as string} />
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 p-3 bg-green-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Data Used</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {usage ? formatBytes(Number(usage.totalUsed || 0)) : '—'}
-                </p>
-                {usage && (
-                  <p className="text-xs text-gray-500">
-                    {Number(usage.percentageUsed || 0).toFixed(0)}% of allowance
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 p-3 bg-yellow-100 rounded-lg">
-                <CreditCard className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Account Balance</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {user.customer ? formatKES(Number(user.customer.balance)) : '—'}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 p-3 bg-blue-100 rounded-lg">
-                <FileText className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Pending Invoices</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {(invoices as Record<string, unknown>[]).filter((i: Record<string, unknown>) => i.status === 'PENDING').length}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <StatCard
+            title="Current Plan"
+            value={plan?.name || 'No Plan'}
+            subtitle={activeSub ? undefined : 'Subscribe to a plan'}
+            icon={Wifi}
+            color="blue"
+            loading={subsLoading}
+          />
+          <StatCard
+            title="Data Used"
+            value={usage ? formatBytes(Number(usage.totalUsed || 0)) : '—'}
+            subtitle={usage ? `${Number(usage.percentageUsed || 0).toFixed(0)}% of allowance` : undefined}
+            icon={BarChart3}
+            color="green"
+            loading={usageLoading}
+          />
+          <StatCard
+            title="Account Balance"
+            value={user.customer ? formatKES(Number(user.customer.balance)) : '—'}
+            icon={CreditCard}
+            color="yellow"
+          />
+          <StatCard
+            title="Pending Invoices"
+            value={(invoices as Record<string, unknown>[]).filter((i: Record<string, unknown>) => i.status === 'PENDING').length}
+            subtitle="invoices"
+            icon={FileText}
+            color="indigo"
+            loading={invoicesLoading}
+          />
         </div>
 
         {/* Usage & Plan Details */}
         {activeSub && (
-          <Card>
+          <Card hover>
             <CardHeader
               title="Current Subscription"
               description={`${plan?.name} - ${plan?.type === 'PREPAID' ? 'Prepaid' : 'Postpaid'}`}
@@ -176,32 +146,32 @@ export default function CustomerDashboard() {
               }
             />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div>
-                <p className="text-sm text-gray-500">Plan Price</p>
-                <p className="text-xl font-semibold text-gray-900">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Plan Price</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatKES(Number(plan?.price || 0))}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {plan?.billingCycle?.toString().toLowerCase() || `Valid for ${plan?.validityDays} days`}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Data Allowance</p>
-                <p className="text-xl font-semibold text-gray-900">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Data Allowance</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
                   {plan?.dataAllowance ? formatBytes(Number(plan.dataAllowance)) : 'Unlimited'}
                 </p>
                 {plan?.speedLimit && (
-                  <p className="text-xs text-gray-500">{plan.speedLimit} Mbps</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{plan.speedLimit} Mbps</p>
                 )}
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Subscription Period</p>
-                <p className="text-sm font-medium text-gray-900">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Subscription Period</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
                   {format(new Date(activeSub.startDate as string), 'MMM d, yyyy')} —{' '}
                   {format(new Date(activeSub.endDate as string), 'MMM d, yyyy')}
                 </p>
                 {activeSub.autoRenew && (
-                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1">
                     <TrendingUp className="h-3 w-3" /> Auto-renew enabled
                   </p>
                 )}
@@ -212,15 +182,17 @@ export default function CustomerDashboard() {
 
         {/* No active subscription */}
         {!activeSub && (
-          <Card className="border-dashed">
-            <div className="text-center py-8">
-              <Wifi className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900">No Active Plan</h3>
-              <p className="mt-1 text-gray-500">Subscribe to a plan to get started</p>
-              <Link href="/subscribe">
-                <Button className="mt-4">Browse Plans</Button>
-              </Link>
-            </div>
+          <Card className="border-dashed border-2">
+            <EmptyState
+              icon={Package}
+              title="No Active Plan"
+              description="Subscribe to a plan to get started with your internet service."
+              action={
+                <Link href="/subscribe">
+                  <Button>Browse Plans</Button>
+                </Link>
+              }
+            />
           </Card>
         )}
 
@@ -238,23 +210,44 @@ export default function CustomerDashboard() {
                 </Link>
               }
             />
-            {(invoices as Record<string, unknown>[]).length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No invoices yet</p>
+            {invoicesLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between animate-pulse p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded" />
+                      <div>
+                        <div className="h-4 w-28 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                        <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : (invoices as Record<string, unknown>[]).length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="No invoices yet"
+                description="Your invoices will appear here when generated."
+              />
             ) : (
               <div className="space-y-3">
                 {(invoices as Record<string, unknown>[]).slice(0, 5).map((invoice: Record<string, unknown>) => (
-                  <div key={invoice.id as string} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={invoice.id as string} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-gray-400" />
+                      <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+                        <FileText className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                      </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{invoice.invoiceNumber as string}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{invoice.invoiceNumber as string}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                           {format(new Date(invoice.createdAt as string), 'MMM d, yyyy')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
                         {formatKES(Number(invoice.totalAmount))}
                       </p>
                       <StatusBadge status={invoice.status as string} />
@@ -277,17 +270,43 @@ export default function CustomerDashboard() {
                 </Link>
               }
             />
-            {(payments as Record<string, unknown>[]).length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No payments yet</p>
+            {paymentsLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between animate-pulse p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded" />
+                      <div>
+                        <div className="h-4 w-28 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                        <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : (payments as Record<string, unknown>[]).length === 0 ? (
+              <EmptyState
+                icon={CreditCard}
+                title="No payments yet"
+                description="Make your first payment to top up your account."
+                action={
+                  <Link href="/payments">
+                    <Button size="sm">Make Payment</Button>
+                  </Link>
+                }
+              />
             ) : (
               <div className="space-y-3">
                 {(payments as Record<string, unknown>[]).slice(0, 5).map((payment: Record<string, unknown>) => (
-                  <div key={payment.id as string} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={payment.id as string} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <div className="flex items-center gap-3">
-                      <CreditCard className="h-5 w-5 text-gray-400" />
+                      <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/30">
+                        <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{payment.paymentNumber as string}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{payment.paymentNumber as string}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                           <span>{payment.method as string}</span>
                           <span>•</span>
                           <span>{format(new Date(payment.createdAt as string), 'MMM d, yyyy')}</span>
@@ -295,7 +314,7 @@ export default function CustomerDashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-green-600">
+                      <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                         +{formatKES(Number(payment.amount))}
                       </p>
                       <StatusBadge status={payment.status as string} />
@@ -309,16 +328,18 @@ export default function CustomerDashboard() {
 
         {/* Account Alerts */}
         {user.customer && Number(user.customer.balance) < 0 && (
-          <Card className="border-yellow-200 bg-yellow-50">
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800">Low Balance</h3>
-                <p className="mt-1 text-sm text-yellow-700">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">Low Balance</h3>
+                <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
                   Your account balance is negative. Please make a payment to avoid service interruption.
                 </p>
-                <Link href="/payments">
-                  <Button size="sm" className="mt-3">
+                <Link href="/payments" className="inline-block mt-3">
+                  <Button size="sm">
                     Make Payment
                   </Button>
                 </Link>
@@ -335,12 +356,14 @@ export default function CustomerDashboard() {
             const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             if (daysLeft <= 7 && daysLeft > 0) {
               return (
-                <Card className="border-yellow-200 bg-yellow-50">
+                <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
                   <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                      <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
                     <div>
-                      <h3 className="text-sm font-medium text-yellow-800">Subscription Expiring Soon</h3>
-                      <p className="mt-1 text-sm text-yellow-700">
+                      <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">Subscription Expiring Soon</h3>
+                      <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
                         Your plan expires in {daysLeft} day{daysLeft > 1 ? 's' : ''}. Renew to avoid interruption.
                       </p>
                     </div>

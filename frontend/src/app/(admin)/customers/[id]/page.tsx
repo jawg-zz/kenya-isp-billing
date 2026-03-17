@@ -11,7 +11,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
 import { format } from 'date-fns';
-import { ArrowLeft, User, Mail, Phone, MapPin, CreditCard, FileText } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, CreditCard, FileText, Shield } from 'lucide-react';
 
 function formatKES(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -75,7 +75,7 @@ export default function CustomerDetailPage() {
   if (isLoading) {
     return (
       <MainLayout user={user}>
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-20">
           <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full" />
         </div>
       </MainLayout>
@@ -86,10 +86,10 @@ export default function CustomerDetailPage() {
     return (
       <MainLayout user={user}>
         <div className="space-y-6">
-          <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+          <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to Customers
           </Link>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
             Customer not found or failed to load.
           </div>
         </div>
@@ -101,110 +101,132 @@ export default function CustomerDetailPage() {
     <MainLayout user={user}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+          <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to Customers
           </Link>
-          <Button variant="outline" size="sm">Edit Customer</Button>
+          <Button variant="secondary" size="sm">Edit Customer</Button>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-full bg-primary-100 flex items-center justify-center">
-            <span className="text-xl font-medium text-primary-700">
-              {u ? `${u.firstName[0]}${u.lastName[0]}` : '??'}
-            </span>
+        {/* Customer Header */}
+        <Card hover>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
+              <span className="text-2xl font-bold text-white">
+                {u ? `${u.firstName[0]}${u.lastName[0]}` : '??'}
+              </span>
+            </div>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {u ? `${u.firstName} ${u.lastName}` : 'Unknown'}
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400 font-mono mt-1">
+                Account: {customer.accountNumber} | Code: {customer.customerCode}
+              </p>
+            </div>
+            <div>
+              <StatusBadge status={u?.accountStatus || 'UNKNOWN'} />
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {u ? `${u.firstName} ${u.lastName}` : 'Unknown'}
-            </h1>
-            <p className="text-gray-600">Account: {customer.accountNumber} | Code: {customer.customerCode}</p>
-          </div>
-          <div className="ml-auto">
-            <StatusBadge status={u?.accountStatus || 'UNKNOWN'} />
-          </div>
-        </div>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Contact Information */}
           <Card>
             <CardHeader title="Contact Information" />
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span>{u?.email || 'No email'}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-gray-400" />
-                <span>{u?.phone || 'No phone'}</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 <div>
-                  {u?.addressLine1 && <p>{u.addressLine1}</p>}
-                  {u?.addressLine2 && <p>{u.addressLine2}</p>}
-                  <p>{[u?.city, u?.county, u?.postalCode].filter(Boolean).join(', ') || 'No address'}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{u?.email || 'No email'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Phone</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{u?.phone || 'No phone'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Address</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {[u?.addressLine1, u?.addressLine2, u?.city, u?.county, u?.postalCode].filter(Boolean).join(', ') || 'No address'}
+                  </p>
                 </div>
               </div>
             </div>
           </Card>
 
-          <Card>
+          {/* Account Balance */}
+          <Card hover>
             <CardHeader title="Account Balance" />
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm text-gray-500">Current Balance</p>
-                <p className="text-2xl font-bold">{formatKES(Number(customer.balance))}</p>
+            <div className="space-y-4">
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Current Balance</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{formatKES(Number(customer.balance))}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Credit Limit</p>
-                <p className="text-lg font-medium">{formatKES(Number(customer.creditLimit))}</p>
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Credit Limit</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{formatKES(Number(customer.creditLimit))}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Member Since</p>
-                <p className="text-sm">{format(new Date(customer.createdAt), 'MMMM d, yyyy')}</p>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Member Since</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{format(new Date(customer.createdAt), 'MMMM d, yyyy')}</p>
               </div>
             </div>
           </Card>
 
+          {/* Quick Actions */}
           <Card>
             <CardHeader title="Quick Actions" />
-            <div className="space-y-2">
-              <Link href="/invoices/management">
-                <Button variant="outline" className="w-full justify-start">
+            <div className="space-y-3">
+              <Link href="/invoices/management" className="block">
+                <Button variant="secondary" className="w-full justify-start">
                   <FileText className="h-4 w-4 mr-2" /> View Invoices
                 </Button>
               </Link>
-              <Link href="/invoices/management">
-                <Button variant="outline" className="w-full justify-start">
+              <Link href="/revenue" className="block">
+                <Button variant="secondary" className="w-full justify-start">
                   <CreditCard className="h-4 w-4 mr-2" /> View Payments
                 </Button>
               </Link>
+              <Button variant="ghost" className="w-full justify-start">
+                <Shield className="h-4 w-4 mr-2" /> Manage Account
+              </Button>
             </div>
           </Card>
         </div>
 
+        {/* Active Subscriptions */}
         <Card>
           <CardHeader title="Active Subscriptions" />
           {customer.subscriptions && customer.subscriptions.length > 0 ? (
             <div className="space-y-3">
               {customer.subscriptions.map((sub) => (
-                <div key={sub.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={sub.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <div>
-                    <p className="font-medium">{sub.plan?.name || 'Unknown Plan'}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-semibold text-gray-900 dark:text-white">{sub.plan?.name || 'Unknown Plan'}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(sub.startDate), 'MMM d, yyyy')} - {format(new Date(sub.endDate), 'MMM d, yyyy')}
                     </p>
                   </div>
                   <div className="text-right">
                     <StatusBadge status={sub.status} />
                     {sub.plan?.price && (
-                      <p className="text-sm text-gray-500 mt-1">{formatKES(sub.plan.price)}/mo</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{formatKES(sub.plan.price)}/mo</p>
                     )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500 text-center py-4">No active subscriptions</p>
+            <div className="text-center py-8">
+              <FileText className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">No active subscriptions</p>
+            </div>
           )}
         </Card>
       </div>

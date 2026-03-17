@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { Wifi, Eye, EyeOff } from 'lucide-react';
+import { Wifi, Eye, EyeOff, Zap } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -26,7 +26,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success('Login successful!');
-      
+
       // Redirect based on user role
       if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
         router.push('/customers');
@@ -42,19 +42,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-100 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-primary-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 py-8">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl mb-4 shadow-lg shadow-primary-500/25">
             <Wifi className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ISP Billing Portal</h1>
-          <p className="mt-2 text-gray-600">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">ISP Billing Portal</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Sign in to your account</p>
         </div>
 
-        <Card>
+        <Card hover>
           <CardHeader title="Sign In" description="Enter your credentials to access your account" />
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               label="Email"
               type="email"
@@ -77,42 +77,43 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  className="h-4 w-4 rounded-lg border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                 />
-                <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Remember me</span>
               </label>
-              <Link href="/forgot-password" className="text-sm text-primary-600 hover:text-primary-500">
+              <Link href="/forgot-password" className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
                 Forgot password?
               </Link>
             </div>
 
             <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+              {!isLoading && <Zap className="h-4 w-4 mr-2" />}
               Sign In
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Don&apos;t have an account?{' '}
-              <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+              <Link href="/register" className="font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
                 Sign up
               </Link>
             </p>
           </div>
         </Card>
 
-        <p className="mt-4 text-center text-xs text-gray-500">
-          &copy; {new Date().getFullYear()} Your ISP. All rights reserved.
+        <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+          &copy; {new Date().getFullYear()} ISP Billing. All rights reserved.
         </p>
       </div>
     </div>

@@ -11,8 +11,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from '@/components/ui/Table';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { StatCard } from '@/components/widgets/StatCard';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 import { format } from 'date-fns';
-import { Users, Search, Plus, Eye, Phone, MapPin } from 'lucide-react';
+import { Users, Search, Plus, Eye, UserCheck, UserX, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 
 interface Customer {
@@ -72,7 +75,7 @@ export default function AdminCustomersPage() {
     },
   });
 
-  const { data: stats, error: statsError } = useQuery({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['customer-stats'],
     queryFn: async () => {
       const res = await api.getCustomerStats();
@@ -91,8 +94,8 @@ export default function AdminCustomersPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-            <p className="mt-1 text-gray-600">Manage your customer accounts</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Customers</h1>
+            <p className="mt-1 text-gray-600 dark:text-gray-400">Manage your customer accounts</p>
           </div>
           <Link href="/customers/new">
             <Button>
@@ -103,27 +106,39 @@ export default function AdminCustomersPage() {
 
         {/* Stats */}
         {statsError ? (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
             Failed to load customer statistics
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card>
-              <p className="text-sm text-gray-500">Total</p>
-              <p className="text-2xl font-bold">{s?.totalCustomers || 0}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">Active</p>
-              <p className="text-2xl font-bold text-green-600">{s?.activeCustomers || 0}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">Suspended</p>
-              <p className="text-2xl font-bold text-yellow-600">{s?.suspendedCustomers || 0}</p>
-            </Card>
-            <Card>
-              <p className="text-sm text-gray-500">New (30d)</p>
-              <p className="text-2xl font-bold text-blue-600">{s?.newCustomers || 0}</p>
-            </Card>
+            <StatCard
+              title="Total"
+              value={s?.totalCustomers || 0}
+              icon={Users}
+              color="blue"
+              loading={statsLoading}
+            />
+            <StatCard
+              title="Active"
+              value={s?.activeCustomers || 0}
+              icon={UserCheck}
+              color="green"
+              loading={statsLoading}
+            />
+            <StatCard
+              title="Suspended"
+              value={s?.suspendedCustomers || 0}
+              icon={UserX}
+              color="yellow"
+              loading={statsLoading}
+            />
+            <StatCard
+              title="New (30d)"
+              value={s?.newCustomers || 0}
+              icon={UserPlus}
+              color="indigo"
+              loading={statsLoading}
+            />
           </div>
         )}
 
@@ -137,13 +152,13 @@ export default function AdminCustomersPage() {
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Search by name, email, phone, account..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-colors"
               />
             </div>
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-colors"
             >
               <option value="">All Status</option>
               <option value="ACTIVE">Active</option>
@@ -155,7 +170,7 @@ export default function AdminCustomersPage() {
         </Card>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
             Failed to load customers. Please try again.
           </div>
         )}
@@ -163,14 +178,22 @@ export default function AdminCustomersPage() {
         {/* Customer Table */}
         <Card padding="none">
           {isLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full" />
+            <div className="p-4">
+              <TableSkeleton rows={8} cols={7} />
             </div>
           ) : customers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No customers found</p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title={search ? 'No customers match your search' : 'No customers yet'}
+              description={search ? 'Try adjusting your search terms or filters.' : 'Add your first customer to get started.'}
+              action={
+                !search ? (
+                  <Link href="/customers/new">
+                    <Button><Plus className="h-4 w-4 mr-2" /> Add Customer</Button>
+                  </Link>
+                ) : undefined
+              }
+            />
           ) : (
             <>
               {/* Mobile */}
@@ -180,20 +203,20 @@ export default function AdminCustomersPage() {
                   const activeSub = customer.subscriptions?.[0];
                   return (
                     <Link key={customer.id} href={`/customers/${customer.id}`}>
-                      <div className="border rounded-lg p-4 hover:bg-gray-50">
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-medium">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
-                            <p className="text-sm text-gray-500">{customer.accountNumber}</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{customer.accountNumber}</p>
                           </div>
                           <StatusBadge status={u?.accountStatus || 'UNKNOWN'} />
                         </div>
-                        <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                        <div className="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                           <span>{u?.phone || '—'}</span>
                           <span>{activeSub?.plan ? activeSub.plan.name : 'No plan'}</span>
                         </div>
-                        <div className="mt-1 text-sm">
-                          Balance: <span className="font-medium">{formatKES(Number(customer.balance))}</span>
+                        <div className="mt-1.5 text-sm">
+                          Balance: <span className="font-semibold text-gray-900 dark:text-white">{formatKES(Number(customer.balance))}</span>
                         </div>
                       </div>
                     </Link>
@@ -220,34 +243,34 @@ export default function AdminCustomersPage() {
                       const u = customer.user;
                       const activeSub = customer.subscriptions?.[0];
                       return (
-                        <TableRow key={customer.id}>
+                        <TableRow key={customer.id} className="group">
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                                <span className="text-xs font-medium text-primary-700">
+                              <div className="h-9 w-9 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">
                                   {u ? `${u.firstName[0]}${u.lastName[0]}` : '??'}
                                 </span>
                               </div>
                               <div>
-                                <p className="font-medium">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
-                                <p className="text-xs text-gray-500">{u?.email || ''}</p>
+                                <p className="font-medium text-gray-900 dark:text-white">{u ? `${u.firstName} ${u.lastName}` : 'Unknown'}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{u?.email || ''}</p>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <p className="font-mono text-sm">{customer.accountNumber}</p>
-                            <p className="text-xs text-gray-500">{customer.customerCode}</p>
+                            <p className="font-mono text-sm text-gray-900 dark:text-white">{customer.accountNumber}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{customer.customerCode}</p>
                           </TableCell>
                           <TableCell>
                             {activeSub?.plan ? (
-                              <span className="text-sm">{activeSub.plan.name}</span>
+                              <span className="text-sm text-gray-900 dark:text-white">{activeSub.plan.name}</span>
                             ) : (
-                              <span className="text-sm text-gray-400">None</span>
+                              <span className="text-sm text-gray-400 dark:text-gray-500">None</span>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium">{formatKES(Number(customer.balance))}</TableCell>
+                          <TableCell className="font-semibold text-gray-900 dark:text-white">{formatKES(Number(customer.balance))}</TableCell>
                           <TableCell><StatusBadge status={u?.accountStatus || 'UNKNOWN'} /></TableCell>
-                          <TableCell className="text-sm text-gray-500">
+                          <TableCell className="text-sm text-gray-500 dark:text-gray-400">
                             {format(new Date(customer.createdAt), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="text-right">

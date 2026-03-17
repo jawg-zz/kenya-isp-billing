@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from '@/components/ui/Table';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 import { format } from 'date-fns';
-import { CreditCard, Smartphone, CheckCircle2, Clock } from 'lucide-react';
+import { CreditCard, Smartphone, CheckCircle2, Clock, Zap } from 'lucide-react';
 
 function formatKES(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -69,11 +71,10 @@ export default function PaymentsPage() {
         setPollingPaymentId(result.data.paymentId);
         setAmount('');
 
-        // Poll for payment status with exponential backoff and jitter
         pollCountRef.current = 0;
         let pollInterval: ReturnType<typeof setInterval>;
         const startTime = Date.now();
-        const maxPollDuration = 120000; // 2 minutes
+        const maxPollDuration = 120000;
 
         const getPollDelay = (count: number) => {
           const baseDelay = Math.min(20000, 5000 * Math.pow(2, count));
@@ -106,16 +107,13 @@ export default function PaymentsPage() {
             // Continue polling
           }
 
-          // Increment poll count, clear current interval, and recreate with new delay
           pollCountRef.current += 1;
           clearInterval(pollInterval);
           pollInterval = setInterval(poll, getPollDelay(pollCountRef.current));
         };
 
-        // Start first poll after 5s delay
         pollInterval = setInterval(poll, 5000);
 
-        // Stop polling after 2 minutes
         setTimeout(() => {
           clearInterval(pollInterval);
           setPollingPaymentId(null);
@@ -138,36 +136,40 @@ export default function PaymentsPage() {
     <MainLayout user={user}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="mt-1 text-gray-600">Make payments and view your payment history</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Payments</h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">Make payments and view your payment history</p>
         </div>
 
         {/* Make Payment */}
-        <Card>
+        <Card hover>
           <CardHeader title="Make a Payment" description="Top up your account via M-Pesa or Airtel Money" />
-          <div className="space-y-4 max-w-lg">
+          <div className="space-y-5 max-w-lg">
             {/* Payment method selector */}
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setPaymentMethod('mpesa')}
-                className={`flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-colors ${
+                className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 ${
                   paymentMethod === 'mpesa'
-                    ? 'border-green-500 bg-green-50 text-green-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
                 }`}
               >
-                <Smartphone className="h-5 w-5" />
+                <div className={`p-2 rounded-lg ${paymentMethod === 'mpesa' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                  <Smartphone className="h-5 w-5" />
+                </div>
                 <span className="font-medium">M-Pesa</span>
               </button>
               <button
                 onClick={() => setPaymentMethod('airtel')}
-                className={`flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-colors ${
+                className={`flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 ${
                   paymentMethod === 'airtel'
-                    ? 'border-red-500 bg-red-50 text-red-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 shadow-sm'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
                 }`}
               >
-                <CreditCard className="h-5 w-5" />
+                <div className={`p-2 rounded-lg ${paymentMethod === 'airtel' ? 'bg-red-100 dark:bg-red-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                  <CreditCard className="h-5 w-5" />
+                </div>
                 <span className="font-medium">Airtel Money</span>
               </button>
             </div>
@@ -190,12 +192,16 @@ export default function PaymentsPage() {
               min="1"
             />
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {[100, 500, 1000, 2000].map((preset) => (
                 <button
                   key={preset}
                   onClick={() => setAmount(String(preset))}
-                  className="px-3 py-1 text-sm rounded-full border border-gray-300 hover:bg-gray-50"
+                  className={`px-4 py-2 text-sm rounded-xl border transition-all duration-200 ${
+                    amount === String(preset)
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
                 >
                   {formatKES(preset)}
                 </button>
@@ -215,12 +221,15 @@ export default function PaymentsPage() {
                   Waiting for payment...
                 </>
               ) : (
-                `Pay ${amount ? formatKES(parseFloat(amount)) : ''}`
+                <>
+                  <Zap className="h-4 w-4 mr-2" />
+                  {amount ? `Pay ${formatKES(parseFloat(amount))}` : 'Enter Amount'}
+                </>
               )}
             </Button>
 
             {pollingPaymentId && (
-              <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+              <div className="flex items-center gap-2.5 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
                 <Clock className="h-4 w-4 animate-spin" />
                 <span>Check your phone for the {paymentMethod === 'mpesa' ? 'M-Pesa' : 'Airtel Money'} prompt...</span>
               </div>
@@ -233,32 +242,38 @@ export default function PaymentsPage() {
           <CardHeader title="Payment History" />
 
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full" />
+            <div className="p-2">
+              <TableSkeleton rows={6} cols={5} />
             </div>
           ) : payments.length === 0 ? (
-            <div className="text-center py-12">
-              <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No payments yet</p>
-            </div>
+            <EmptyState
+              icon={CreditCard}
+              title="No payments yet"
+              description="Make your first payment to top up your account."
+              action={
+                <Button size="sm">
+                  <Zap className="h-4 w-4 mr-2" /> Make Payment
+                </Button>
+              }
+            />
           ) : (
             <>
               {/* Mobile view */}
-              <div className="block lg:hidden space-y-3">
+              <div className="block lg:hidden space-y-3 p-1">
                 {payments.map((payment: Record<string, unknown>) => (
-                  <div key={payment.id as string} className="border rounded-lg p-4 space-y-2">
+                  <div key={payment.id as string} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-medium">{payment.paymentNumber as string}</p>
-                        <p className="text-sm text-gray-500">{payment.method as string}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{payment.paymentNumber as string}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{(payment.method as string).replace('_', ' ')}</p>
                       </div>
                       <StatusBadge status={payment.status as string} />
                     </div>
                     <div className="flex justify-between items-end">
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {format(new Date(payment.createdAt as string), 'MMM d, yyyy HH:mm')}
                       </p>
-                      <p className="font-semibold text-green-600">+{formatKES(Number(payment.amount))}</p>
+                      <p className="font-semibold text-emerald-600 dark:text-emerald-400">+{formatKES(Number(payment.amount))}</p>
                     </div>
                   </div>
                 ))}
@@ -278,20 +293,24 @@ export default function PaymentsPage() {
                   </TableHeader>
                   <TableBody>
                     {payments.map((payment: Record<string, unknown>) => (
-                      <TableRow key={payment.id as string}>
-                        <TableCell className="font-medium">{payment.paymentNumber as string}</TableCell>
+                      <TableRow key={payment.id as string} className="group">
+                        <TableCell className="font-mono font-medium text-gray-900 dark:text-white">{payment.paymentNumber as string}</TableCell>
                         <TableCell>
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                             {payment.method === 'MPESA' ? (
-                              <Smartphone className="h-4 w-4 text-green-600" />
+                              <div className="p-1 rounded bg-emerald-100 dark:bg-emerald-900/30">
+                                <Smartphone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              </div>
                             ) : (
-                              <CreditCard className="h-4 w-4" />
+                              <div className="p-1 rounded bg-red-100 dark:bg-red-900/30">
+                                <CreditCard className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                              </div>
                             )}
-                            {payment.method as string}
+                            {(payment.method as string).replace('_', ' ')}
                           </span>
                         </TableCell>
-                        <TableCell>{format(new Date(payment.createdAt as string), 'MMM d, yyyy HH:mm')}</TableCell>
-                        <TableCell className="font-medium text-green-600">+{formatKES(Number(payment.amount))}</TableCell>
+                        <TableCell className="text-gray-600 dark:text-gray-400">{format(new Date(payment.createdAt as string), 'MMM d, yyyy HH:mm')}</TableCell>
+                        <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400">+{formatKES(Number(payment.amount))}</TableCell>
                         <TableCell><StatusBadge status={payment.status as string} /></TableCell>
                       </TableRow>
                     ))}
