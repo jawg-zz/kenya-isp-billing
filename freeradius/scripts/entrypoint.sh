@@ -137,14 +137,13 @@ CREATE TABLE IF NOT EXISTS radpostauth (
 );
 CREATE INDEX IF NOT EXISTS radpostauth_username ON radpostauth(username);
 
--- Insert default NAS entries
-INSERT INTO nas (nasname, shortname, type, secret, description)
-SELECT 'localhost', 'localhost', 'other', '${RADIUS_SECRET}', 'Localhost NAS'
-WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'localhost');
-
+-- Insert default NAS entry for API (localhost is handled by clients.conf)
 INSERT INTO nas (nasname, shortname, type, secret, description)
 SELECT 'isp_billing_api', 'api', 'other', '${RADIUS_SECRET}', 'ISP Billing API'
 WHERE NOT EXISTS (SELECT 1 FROM nas WHERE nasname = 'isp_billing_api');
+
+-- Clean up duplicate localhost (handled by clients.conf, not database)
+DELETE FROM nas WHERE nasname = 'localhost';
 
 EOSQL
 
