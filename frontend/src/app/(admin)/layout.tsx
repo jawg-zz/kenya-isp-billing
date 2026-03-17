@@ -17,7 +17,7 @@ export default function AdminLayout({
       if (!isAuthenticated) {
         router.push('/login');
       } else if (user?.role !== 'ADMIN' && user?.role !== 'SUPPORT') {
-        router.push('/customer/dashboard');
+        router.push('/dashboard');
       }
     }
   }, [isAuthenticated, isLoading, user, router]);

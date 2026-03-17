@@ -17,7 +17,7 @@ export default function RootPage() {
     } else if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
       router.replace('/customers');
     } else {
-      router.replace('/customer/dashboard');
+      router.replace('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);
 

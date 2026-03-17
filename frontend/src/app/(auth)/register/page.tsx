@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
+import api from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -26,7 +27,7 @@ export default function RegisterPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { register, user } = useAuth();
+  const { register } = useAuth();
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,11 +63,12 @@ export default function RegisterPage() {
       });
       toast.success('Registration successful!');
 
-      // Redirect based on user role
-      if (user?.role === 'ADMIN' || user?.role === 'SUPPORT') {
-        router.push('/customers');
+      // Redirect based on user role (read from localStorage for reliability)
+      const currentUser = api.getUser() as { role?: string } | null;
+      if (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPPORT') {
+        router.push('/');
       } else {
-        router.push('/customer/dashboard');
+        router.push('/dashboard');
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
