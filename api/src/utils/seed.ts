@@ -11,7 +11,12 @@ async function main() {
   
   const admin = await prisma.user.upsert({
     where: { email: 'admin@isp-kenya.co.ke' },
-    update: {},
+    update: {
+      password: adminPassword,
+      accountStatus: 'ACTIVE',
+      emailVerified: true,
+      phoneVerified: true,
+    },
     create: {
       email: 'admin@isp-kenya.co.ke',
       password: adminPassword,
@@ -274,7 +279,12 @@ async function main() {
   
   const demoUser = await prisma.user.upsert({
     where: { email: 'demo@customer.co.ke' },
-    update: {},
+    update: {
+      password: customerPassword,
+      accountStatus: 'ACTIVE',
+      emailVerified: true,
+      phoneVerified: true,
+    },
     create: {
       email: 'demo@customer.co.ke',
       password: customerPassword,
