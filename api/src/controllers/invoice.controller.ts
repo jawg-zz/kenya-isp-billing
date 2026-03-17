@@ -101,18 +101,65 @@ class InvoiceController {
           id,
           customer: { userId: req.user!.id },
         },
+        include: {
+          customer: {
+            include: { user: true },
+          },
+          subscription: {
+            include: { plan: true },
+          },
+        },
       });
 
       if (!invoice) {
         throw new NotFoundError('Invoice not found');
       }
 
-      // Generate PDF if not exists
-      if (!invoiceService.invoiceExists(invoice.invoiceNumber)) {
-        await invoiceService.generatePDF(invoice.id);
-      }
-
       const filePath = invoiceService.getInvoiceFilePath(invoice.invoiceNumber);
+      const fileExists = invoiceService.invoiceExists(invoice.invoiceNumber);
+
+      // Generate PDF using the new template
+      if (!fileExists) {
+        const companySettings = {
+          companyName: config.invoice.companyName,
+          companyAddress: config.invoice.companyAddress,
+          companyPhone: config.invoice.companyPhone,
+          companyEmail: config.invoice.companyEmail,
+          companyKraPin: config.invoice.companyKraPin,
+          mpesaPaybill: config.mpesa.shortcode,
+          tagline: 'Thank you for your business!',
+        };
+
+        await generateInvoicePDF(
+          {
+            invoiceNumber: invoice.invoiceNumber,
+            status: invoice.status,
+            subtotal: Number(invoice.subtotal),
+            taxRate: Number(invoice.taxRate),
+            taxAmount: Number(invoice.taxAmount),
+            totalAmount: Number(invoice.totalAmount),
+            createdAt: invoice.createdAt,
+            dueDate: invoice.dueDate,
+            notes: invoice.notes,
+            metadata: invoice.metadata as { items?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }> } | null,
+          },
+          {
+            customerCode: invoice.customer.customerCode,
+            accountNumber: invoice.customer.accountNumber,
+            user: {
+              firstName: invoice.customer.user.firstName,
+              lastName: invoice.customer.user.lastName,
+              email: invoice.customer.user.email,
+              phone: invoice.customer.user.phone,
+              addressLine1: invoice.customer.user.addressLine1,
+              city: invoice.customer.user.city,
+              county: invoice.customer.user.county,
+              postalCode: invoice.customer.user.postalCode,
+            },
+          },
+          companySettings
+        );
+      }
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
