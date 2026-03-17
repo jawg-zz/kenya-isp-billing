@@ -18,6 +18,7 @@ declare class MpesaService {
     initiateSTKPush(request: MpesaSTKPushRequest): Promise<STKPushResponse>;
     querySTKPushStatus(checkoutRequestId: string): Promise<any>;
     processCallback(callback: MpesaCallback): Promise<void>;
+    private handleSuccessfulPaymentWithinTransaction;
     private handleSuccessfulPayment;
     validateCallback(body: any): boolean;
 }

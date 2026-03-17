@@ -233,46 +233,68 @@ class RadiusService {
                 },
             });
         }
-        // Update usage record
-        await this.updateUsageRecord(radiusConfig.customer.userId, radiusConfig.customerId, subscription.id, request);
-        // Update subscription data used
-        await this.updateSubscriptionUsage(subscription.id, totalOctets);
-        // Check FUP threshold
-        await this.checkFUPThreshold(subscription, totalOctets);
+        // Compute delta octets since last update for this session
+        const cacheKey = `radius:session:${request.sessionId}:cumulative`;
+        const previous = await redis_1.cache.get(cacheKey);
+        let deltaInputOctets = request.inputOctets;
+        let deltaOutputOctets = request.outputOctets;
+        let deltaInputPackets = request.inputPackets;
+        let deltaOutputPackets = request.outputPackets;
+        if (previous) {
+            deltaInputOctets = Math.max(0, request.inputOctets - previous.inputOctets);
+            deltaOutputOctets = Math.max(0, request.outputOctets - previous.outputOctets);
+            deltaInputPackets = Math.max(0, request.inputPackets - previous.inputPackets);
+            deltaOutputPackets = Math.max(0, request.outputPackets - previous.outputPackets);
+        }
+        // Store current cumulative for next delta
+        await redis_1.cache.set(cacheKey, {
+            inputOctets: request.inputOctets,
+            outputOctets: request.outputOctets,
+            inputPackets: request.inputPackets,
+            outputPackets: request.outputPackets,
+        }, 3600); // expire after 1 hour (should be longer for long sessions)
+        // Update usage record with delta
+        await this.updateUsageRecord(radiusConfig.customer.userId, radiusConfig.customerId, subscription.id, request.sessionId, request.nasIpAddress, deltaInputOctets, deltaOutputOctets, deltaInputPackets, deltaOutputPackets);
+        // Update subscription data used with delta
+        const deltaTotalOctets = deltaInputOctets + deltaOutputOctets;
+        await this.updateSubscriptionUsage(subscription.id, deltaTotalOctets);
+        // Check FUP threshold (using updated subscription.dataUsed)
+        await this.checkFUPThreshold(subscription.id);
     }
-    // Update usage record
-    async updateUsageRecord(userId, customerId, subscriptionId, request) {
+    // Update usage record (with delta octets)
+    async updateUsageRecord(userId, customerId, subscriptionId, sessionId, nasIpAddress, deltaInputOctets, deltaOutputOctets, deltaInputPackets, deltaOutputPackets) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        // Upsert daily usage record
+        const totalDeltaOctets = deltaInputOctets + deltaOutputOctets;
+        // Upsert daily usage record (increment)
         await database_1.prisma.usageRecord.upsert({
             where: {
                 id: `${subscriptionId}_${today.toISOString().split('T')[0]}`,
             },
             update: {
-                inputOctets: request.inputOctets,
-                outputOctets: request.outputOctets,
-                totalOctets: request.inputOctets + request.outputOctets,
-                inputPackets: request.inputPackets,
-                outputPackets: request.outputPackets,
+                inputOctets: { increment: deltaInputOctets },
+                outputOctets: { increment: deltaOutputOctets },
+                totalOctets: { increment: totalDeltaOctets },
+                inputPackets: { increment: deltaInputPackets },
+                outputPackets: { increment: deltaOutputPackets },
             },
             create: {
                 id: `${subscriptionId}_${today.toISOString().split('T')[0]}`,
                 userId,
                 customerId,
                 subscriptionId,
-                sessionId: request.sessionId,
-                inputOctets: request.inputOctets,
-                outputOctets: request.outputOctets,
-                totalOctets: request.inputOctets + request.outputOctets,
-                inputPackets: request.inputPackets,
-                outputPackets: request.outputPackets,
-                nasIpAddress: request.nasIpAddress,
+                sessionId,
+                inputOctets: deltaInputOctets,
+                outputOctets: deltaOutputOctets,
+                totalOctets: totalDeltaOctets,
+                inputPackets: deltaInputPackets,
+                outputPackets: deltaOutputPackets,
+                nasIpAddress,
             },
         });
     }
-    // Update subscription data usage
-    async updateSubscriptionUsage(subscriptionId, totalOctets) {
+    // Update subscription data usage with delta
+    async updateSubscriptionUsage(subscriptionId, deltaTotalOctets) {
         const subscription = await database_1.prisma.subscription.findUnique({
             where: { id: subscriptionId },
             include: { plan: true },
@@ -280,14 +302,14 @@ class RadiusService {
         if (!subscription || !subscription.plan.dataAllowance) {
             return;
         }
-        // Calculate remaining data
-        const dataUsed = totalOctets;
-        const remaining = BigInt(subscription.plan.dataAllowance) - BigInt(dataUsed);
-        const dataRemaining = remaining > 0n ? remaining : 0n;
+        const currentDataUsed = subscription.dataUsed;
+        const newDataUsed = currentDataUsed + BigInt(deltaTotalOctets);
+        const dataAllowance = BigInt(subscription.plan.dataAllowance);
+        const dataRemaining = dataAllowance > newDataUsed ? dataAllowance - newDataUsed : 0n;
         await database_1.prisma.subscription.update({
             where: { id: subscriptionId },
             data: {
-                dataUsed: BigInt(dataUsed),
+                dataUsed: newDataUsed,
                 dataRemaining: dataRemaining,
             },
         });
@@ -295,39 +317,53 @@ class RadiusService {
         await redis_1.cache.del(`radius:user:cust_${subscription.customerId}`);
     }
     // Check Fair Usage Policy threshold
-    async checkFUPThreshold(subscription, totalOctets) {
-        const plan = subscription.plan;
-        if (!plan.fupThreshold) {
+    async checkFUPThreshold(subscriptionId) {
+        const subscription = await database_1.prisma.subscription.findUnique({
+            where: { id: subscriptionId },
+            include: { plan: true, customer: { include: { user: true } } },
+        });
+        if (!subscription || !subscription.plan.fupThreshold) {
             return;
         }
+        const plan = subscription.plan;
         const fupThreshold = BigInt(plan.fupThreshold);
-        const currentUsage = BigInt(totalOctets);
+        const currentUsage = subscription.dataUsed;
         const usagePercentage = Number((currentUsage * 100n) / fupThreshold);
         // Check if FUP threshold reached (90% and 100%)
         if (usagePercentage >= 90 && usagePercentage < 100) {
-            // Send warning at 90%
-            const customer = await database_1.prisma.customer.findUnique({
-                where: { id: subscription.customerId },
-                include: { user: true },
-            });
-            if (customer && customer.user) {
+            // Send warning at 90% (only once)
+            const warningKey = `fup:warning:${subscriptionId}`;
+            const warningSent = await redis_1.cache.get(warningKey);
+            if (!warningSent && subscription.customer?.user) {
                 await database_1.prisma.notification.create({
                     data: {
-                        userId: customer.userId,
+                        userId: subscription.customer.userId,
                         type: 'FUP_THRESHOLD',
                         title: 'Fair Usage Warning',
                         message: `You have used ${usagePercentage}% of your fair usage allowance. Your speed may be reduced after reaching the limit.`,
                         channel: 'in_app',
                     },
                 });
+                await redis_1.cache.set(warningKey, true, 86400);
             }
         }
         else if (usagePercentage >= 100) {
-            // FUP threshold reached - apply speed limit
-            logger_1.logger.info(`FUP threshold reached for subscription ${subscription.id}`);
-            // In a real system, this would trigger a RADIUS CoA (Change of Authorization)
-            // to update the user's speed limit on the NAS device
-            await this.applyFUPLimit(subscription);
+            // FUP threshold reached - apply speed limit (only once)
+            const thresholdReachedKey = `fup:reached:${subscriptionId}`;
+            const alreadyReached = await redis_1.cache.get(thresholdReachedKey);
+            if (!alreadyReached) {
+                logger_1.logger.info(`FUP threshold reached for subscription ${subscriptionId}`);
+                // In a real system, this would trigger a RADIUS CoA (Change of Authorization)
+                // to update the user's speed limit on the NAS device
+                await this.applyFUPLimit(subscription);
+                await redis_1.cache.set(thresholdReachedKey, true, 30 * 24 * 60 * 60); // 30 days
+            }
+        }
+        else if (usagePercentage < 90) {
+            // Usage dropped below threshold, clear flags
+            await redis_1.cache.del(`fup:warning:${subscriptionId}`);
+            await redis_1.cache.del(`fup:reached:${subscriptionId}`);
+            await redis_1.cache.del(`radius:fup:${subscriptionId}`);
         }
     }
     // Apply FUP speed limit

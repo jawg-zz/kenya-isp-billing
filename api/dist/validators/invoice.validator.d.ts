@@ -50,7 +50,7 @@ export declare const invoiceFilterSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     limit?: number;
     page?: number;
-    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
+    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
     customerId?: string;
     startDate?: string;
     endDate?: string;
@@ -59,7 +59,7 @@ export declare const invoiceFilterSchema: z.ZodObject<{
 }, {
     limit?: number;
     page?: number;
-    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
+    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
     customerId?: string;
     startDate?: string;
     endDate?: string;
@@ -71,10 +71,10 @@ export declare const updateInvoiceStatusSchema: z.ZodObject<{
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     notes?: string;
-    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
+    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
 }, {
     notes?: string;
-    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
+    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
 }>;
 export declare const sendInvoiceSchema: z.ZodObject<{
     invoiceId: z.ZodString;

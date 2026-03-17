@@ -38,6 +38,7 @@ declare class AirtelService {
     initiatePayment(request: AirtelPaymentRequest): Promise<AirtelPaymentResponse>;
     checkTransactionStatus(transactionId: string): Promise<AirtelTransactionStatus>;
     processCallback(callback: AirtelCallback): Promise<void>;
+    private handleSuccessfulPaymentWithinTransaction;
     private handleSuccessfulPayment;
 }
 export declare const airtelService: AirtelService;

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.paymentController = void 0;
 const database_1 = require("../config/database");
+const library_1 = require("@prisma/client/runtime/library");
 const mpesa_service_1 = require("../services/mpesa.service");
 const airtel_service_1 = require("../services/airtel.service");
 const sms_service_1 = require("../services/sms.service");
@@ -11,6 +12,14 @@ class PaymentController {
     async initiateMpesaPayment(req, res, next) {
         try {
             const { phoneNumber, amount, accountReference, transactionDesc } = req.body;
+            // Validate amount
+            if (typeof amount !== 'number' || amount <= 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid amount',
+                });
+                return;
+            }
             // Get customer
             const customer = await database_1.prisma.customer.findFirst({
                 where: { userId: req.user.id },
@@ -164,6 +173,14 @@ class PaymentController {
     async initiateAirtelPayment(req, res, next) {
         try {
             const { phoneNumber, amount, description } = req.body;
+            // Validate amount
+            if (typeof amount !== 'number' || amount <= 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid amount',
+                });
+                return;
+            }
             const customer = await database_1.prisma.customer.findFirst({
                 where: { userId: req.user.id },
                 include: { user: true },
@@ -374,6 +391,15 @@ class PaymentController {
     async processCashPayment(req, res, next) {
         try {
             const { customerId, amount, reference, notes } = req.body;
+            // Validate amount
+            if (typeof amount !== 'number' || amount <= 0) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid amount',
+                });
+                return;
+            }
+            const amountDecimal = new library_1.Decimal(amount);
             const customer = await database_1.prisma.customer.findUnique({
                 where: { id: customerId },
                 include: { user: true },
@@ -391,7 +417,7 @@ class PaymentController {
                     paymentNumber,
                     customerId,
                     userId: req.user.id,
-                    amount,
+                    amount: amountDecimal,
                     currency: 'KES',
                     method: 'CASH',
                     status: 'COMPLETED',
@@ -404,12 +430,12 @@ class PaymentController {
             await database_1.prisma.customer.update({
                 where: { id: customerId },
                 data: {
-                    balance: { increment: amount },
+                    balance: { increment: amountDecimal },
                 },
             });
             // Send SMS confirmation
             if (customer.user.phone) {
-                await sms_service_1.smsService.sendPaymentConfirmation(customer.user.phone, amount, reference, Number(customer.balance) + amount);
+                await sms_service_1.smsService.sendPaymentConfirmation(customer.user.phone, amountDecimal.toNumber(), reference, customer.balance.plus(amountDecimal).toNumber());
             }
             const response = {
                 success: true,

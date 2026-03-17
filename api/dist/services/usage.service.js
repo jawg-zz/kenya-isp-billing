@@ -127,17 +127,17 @@ class UsageService {
         today.setHours(0, 0, 0, 0);
         const dateStr = today.toISOString().split('T')[0];
         const totalOctets = data.inputOctets + data.outputOctets;
-        // Upsert daily usage record
+        // Upsert daily usage record (increment)
         await database_1.prisma.usageRecord.upsert({
             where: {
                 id: `${data.subscriptionId}_${dateStr}`,
             },
             update: {
-                inputOctets: data.inputOctets,
-                outputOctets: data.outputOctets,
-                totalOctets,
-                inputPackets: data.inputPackets,
-                outputPackets: data.outputPackets,
+                inputOctets: { increment: data.inputOctets },
+                outputOctets: { increment: data.outputOctets },
+                totalOctets: { increment: totalOctets },
+                inputPackets: { increment: data.inputPackets },
+                outputPackets: { increment: data.outputPackets },
             },
             create: {
                 id: `${data.subscriptionId}_${dateStr}`,
@@ -154,11 +154,11 @@ class UsageService {
                 timestamp: today,
             },
         });
-        // Update subscription usage
+        // Update subscription usage (increment)
         await database_1.prisma.subscription.update({
             where: { id: data.subscriptionId },
             data: {
-                dataUsed: totalOctets,
+                dataUsed: { increment: totalOctets },
             },
         });
         // Invalidate cache
@@ -177,11 +177,10 @@ class UsageService {
         }
         const fupThreshold = Number(subscription.plan.fupThreshold);
         const dataUsed = Number(subscription.dataUsed);
-        // Check if FUP threshold just crossed
-        const previousUsage = dataUsed - Number(subscription.plan.dataAllowance || 0);
-        const wasAboveThreshold = previousUsage >= fupThreshold;
-        const isAboveThreshold = dataUsed >= fupThreshold;
-        if (isAboveThreshold && !wasAboveThreshold) {
+        // Check if FUP threshold reached (only notify once per billing period)
+        const thresholdReachedKey = `fup:reached:${subscriptionId}`;
+        const alreadyReached = await redis_1.cache.get(thresholdReachedKey);
+        if (dataUsed >= fupThreshold && !alreadyReached) {
             // FUP threshold just crossed - apply speed limit
             logger_1.logger.info(`FUP threshold reached for customer ${customerId}`);
             // Create notification
@@ -200,10 +199,13 @@ class UsageService {
                 newSpeed: subscription.plan.fupSpeedLimit || 1,
             }, 86400 // 24 hours
             );
+            // Mark threshold as reached (expire after billing period - 30 days)
+            await redis_1.cache.set(thresholdReachedKey, true, 30 * 24 * 60 * 60);
         }
-        else if (!isAboveThreshold && isAboveThreshold) {
-            // Usage dropped below threshold (maybe new billing period)
+        else if (dataUsed < fupThreshold && alreadyReached) {
+            // Usage dropped below threshold (maybe new billing period), clear flags
             await redis_1.cache.del(`radius:fup:${subscriptionId}`);
+            await redis_1.cache.del(thresholdReachedKey);
         }
         // Warning at 90% (only once)
         const warningThreshold = fupThreshold * 0.9;

@@ -140,7 +140,7 @@ class AuthService {
             const decoded = jsonwebtoken_1.default.verify(refreshToken, config_1.default.jwt.refreshSecret);
             // Check if refresh token exists in database
             const storedToken = await database_1.prisma.refreshToken.findUnique({
-                where: { token: decoded.jti },
+                where: { id: decoded.jti },
                 include: { user: true },
             });
             if (!storedToken || storedToken.expiresAt < new Date()) {

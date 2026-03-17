@@ -158,128 +158,151 @@ class AirtelService {
             reference: transaction.reference,
             status: transaction.status,
         });
-        // Find the payment record
-        const payment = await database_1.prisma.payment.findFirst({
-            where: {
-                reference: transaction.reference,
-            },
-            include: {
-                customer: true,
-                subscription: true,
+        // Use transaction to prevent race conditions
+        await database_1.prisma.$transaction(async (tx) => {
+            // Find the payment record
+            const payment = await tx.payment.findFirst({
+                where: {
+                    reference: transaction.reference,
+                },
+                include: {
+                    customer: true,
+                    subscription: true,
+                },
+            });
+            if (!payment) {
+                logger_1.logger.error('Payment not found for callback:', {
+                    reference: transaction.reference,
+                });
+                return;
+            }
+            // If payment already processed, skip
+            if (payment.status === 'COMPLETED' || payment.status === 'FAILED') {
+                logger_1.logger.warn(`Payment ${payment.id} already processed with status ${payment.status}`);
+                return;
+            }
+            // Update payment based on status
+            const updateData = {
+                metadata: {
+                    ...(payment.metadata || {}),
+                    airtelTransactionId: transaction.id,
+                    airtelStatus: transaction.status,
+                },
+            };
+            if (transaction.status === 'SUCCESS') {
+                updateData.status = 'COMPLETED';
+                updateData.processedAt = new Date();
+                await tx.payment.update({
+                    where: { id: payment.id },
+                    data: updateData,
+                });
+                // Process successful payment within same transaction
+                await this.handleSuccessfulPaymentWithinTransaction(tx, payment);
+            }
+            else if (transaction.status === 'FAILED') {
+                updateData.status = 'FAILED';
+                updateData.resultDesc = transaction.status;
+                await tx.payment.update({
+                    where: { id: payment.id },
+                    data: updateData,
+                });
+                logger_1.logger.warn('Airtel payment failed:', {
+                    paymentId: payment.id,
+                    status: transaction.status,
+                });
+                // Notify customer
+                await tx.notification.create({
+                    data: {
+                        userId: payment.customer.userId,
+                        type: 'PAYMENT_FAILED',
+                        title: 'Payment Failed',
+                        message: `Your Airtel Money payment of KES ${payment.amount} failed.`,
+                        channel: 'in_app',
+                    },
+                });
+            }
+        });
+    }
+    // Handle successful payment (within transaction)
+    async handleSuccessfulPaymentWithinTransaction(tx, payment) {
+        // Update customer balance
+        await tx.customer.update({
+            where: { id: payment.customerId },
+            data: {
+                balance: {
+                    increment: payment.amount,
+                },
             },
         });
-        if (!payment) {
-            logger_1.logger.error('Payment not found for callback:', {
-                reference: transaction.reference,
-            });
-            return;
-        }
-        // Update payment based on status
-        const updateData = {
-            metadata: {
-                ...(payment.metadata || {}),
-                airtelTransactionId: transaction.id,
-                airtelStatus: transaction.status,
-            },
-        };
-        if (transaction.status === 'SUCCESS') {
-            updateData.status = 'COMPLETED';
-            updateData.processedAt = new Date();
-            await database_1.prisma.payment.update({
-                where: { id: payment.id },
-                data: updateData,
-            });
-            // Process successful payment
-            await this.handleSuccessfulPayment(payment);
-        }
-        else if (transaction.status === 'FAILED') {
-            updateData.status = 'FAILED';
-            updateData.resultDesc = transaction.status;
-            await database_1.prisma.payment.update({
-                where: { id: payment.id },
-                data: updateData,
-            });
-            logger_1.logger.warn('Airtel payment failed:', {
-                paymentId: payment.id,
-                status: transaction.status,
-            });
-            // Notify customer
-            await database_1.prisma.notification.create({
+        // Update invoice if exists
+        if (payment.invoiceId) {
+            await tx.invoice.update({
+                where: { id: payment.invoiceId },
                 data: {
-                    userId: payment.customer.userId,
-                    type: 'PAYMENT_FAILED',
-                    title: 'Payment Failed',
-                    message: `Your Airtel Money payment of KES ${payment.amount} failed.`,
-                    channel: 'in_app',
+                    status: 'PAID',
+                    paidAt: new Date(),
                 },
             });
         }
+        // Activate or renew subscription if exists
+        if (payment.subscriptionId) {
+            const subscription = await tx.subscription.findUnique({
+                where: { id: payment.subscriptionId },
+                include: { plan: true },
+            });
+            if (subscription) {
+                const plan = subscription.plan;
+                const now = new Date();
+                let newEndDate = new Date(now);
+                // If subscription already active, extend from existing end date
+                if (subscription.status === 'ACTIVE' && subscription.endDate > now) {
+                    newEndDate = new Date(subscription.endDate);
+                    newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
+                }
+                else {
+                    newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
+                }
+                const updateData = {
+                    status: 'ACTIVE',
+                    endDate: newEndDate,
+                };
+                // Only reset usage if subscription was not active
+                if (subscription.status !== 'ACTIVE') {
+                    updateData.startDate = now;
+                    updateData.dataUsed = 0;
+                    updateData.dataRemaining = plan.dataAllowance;
+                }
+                await tx.subscription.update({
+                    where: { id: subscription.id },
+                    data: updateData,
+                });
+                await tx.notification.create({
+                    data: {
+                        userId: payment.customer.userId,
+                        type: 'SUBSCRIPTION_ACTIVATED',
+                        title: 'Subscription Activated',
+                        message: `Your ${plan.name} subscription has been activated. Valid until ${newEndDate.toLocaleDateString('en-KE')}`,
+                        channel: 'in_app',
+                    },
+                });
+            }
+        }
+        // Create notification
+        await tx.notification.create({
+            data: {
+                userId: payment.customer.userId,
+                type: 'PAYMENT_RECEIVED',
+                title: 'Payment Received',
+                message: `Your Airtel Money payment of KES ${payment.amount} has been received.`,
+                channel: 'in_app',
+            },
+        });
+        logger_1.logger.info('Airtel payment processed successfully:', { paymentId: payment.id });
     }
-    // Handle successful payment (same logic as M-Pesa)
+    // Handle successful payment (non-transaction wrapper for external calls)
     async handleSuccessfulPayment(payment) {
         try {
-            // Update customer balance
-            await database_1.prisma.customer.update({
-                where: { id: payment.customerId },
-                data: {
-                    balance: {
-                        increment: payment.amount,
-                    },
-                },
-            });
-            // Update invoice if exists
-            if (payment.invoiceId) {
-                await database_1.prisma.invoice.update({
-                    where: { id: payment.invoiceId },
-                    data: {
-                        status: 'PAID',
-                        paidAt: new Date(),
-                    },
-                });
-            }
-            // Activate or renew subscription if exists
-            if (payment.subscriptionId) {
-                const subscription = await database_1.prisma.subscription.findUnique({
-                    where: { id: payment.subscriptionId },
-                    include: { plan: true },
-                });
-                if (subscription) {
-                    const plan = subscription.plan;
-                    const now = new Date();
-                    const newEndDate = new Date(now);
-                    newEndDate.setDate(newEndDate.getDate() + plan.validityDays);
-                    await database_1.prisma.subscription.update({
-                        where: { id: subscription.id },
-                        data: {
-                            status: 'ACTIVE',
-                            startDate: now,
-                            endDate: newEndDate,
-                            dataUsed: 0,
-                            dataRemaining: plan.dataAllowance,
-                        },
-                    });
-                    await database_1.prisma.notification.create({
-                        data: {
-                            userId: payment.customer.userId,
-                            type: 'SUBSCRIPTION_ACTIVATED',
-                            title: 'Subscription Activated',
-                            message: `Your ${plan.name} subscription has been activated.`,
-                            channel: 'in_app',
-                        },
-                    });
-                }
-            }
-            // Create notification
-            await database_1.prisma.notification.create({
-                data: {
-                    userId: payment.customer.userId,
-                    type: 'PAYMENT_RECEIVED',
-                    title: 'Payment Received',
-                    message: `Your Airtel Money payment of KES ${payment.amount} has been received.`,
-                    channel: 'in_app',
-                },
-            });
-            logger_1.logger.info('Airtel payment processed successfully:', { paymentId: payment.id });
+            await this.handleSuccessfulPaymentWithinTransaction(database_1.prisma, payment);
         }
         catch (error) {
             logger_1.logger.error('Error processing Airtel payment:', error);
