@@ -466,8 +466,12 @@ class ApiClient {
     return data;
   }
 
-  async bulkUpdateSettings(settings: Record<string, string>) {
-    const { data } = await this.client.post<ApiResponse<Record<string, unknown>>>('/settings/bulk', { settings });
+  async bulkUpdateSettings(settings: Array<{ key: string; value: string }> | Record<string, string>) {
+    // Support both array [{key, value}] and flat object {key: value} formats
+    const payload = Array.isArray(settings)
+      ? settings
+      : Object.entries(settings).map(([key, value]) => ({ key, value: String(value) }));
+    const { data } = await this.client.post<ApiResponse<Record<string, unknown>>>('/settings/bulk', { settings: payload });
     return data;
   }
 

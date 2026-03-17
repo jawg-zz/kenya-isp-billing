@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { AuthProvider } from '@/lib/auth';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { NotificationListener } from '@/components/NotificationListener';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,6 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <NotificationListener />
             {children}
           </AuthProvider>
         </QueryClientProvider>

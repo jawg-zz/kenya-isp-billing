@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +13,11 @@ import {
   Save,
   Loader2,
 } from 'lucide-react';
+
+interface SettingEntry {
+  key: string;
+  value: string;
+}
 
 interface SettingsMap {
   [key: string]: string;
@@ -44,13 +50,16 @@ export default function SettingsPage() {
       setLoading(true);
       const res = await api.getSettings();
       if (res.success && res.data) {
-        const all = res.data as Record<string, SettingsMap>;
-        setCompany(all.company || {});
-        setPayment(all.payment || {});
-        setBilling(all.billing || {});
-        setBranding(all.branding || {});
-        setOperations(all.operations || {});
-        setApiRadius(all.api_radius || {});
+        // Backend returns: { settings: { company: [{key, value}], ... }, total }
+        const settingsGroup = (res.data as any).settings || {};
+        const toMap = (arr: SettingEntry[]): SettingsMap =>
+          Object.fromEntries((arr || []).map((s) => [s.key, s.value]));
+        setCompany(toMap(settingsGroup.company));
+        setPayment(toMap(settingsGroup.payment));
+        setBilling(toMap(settingsGroup.billing));
+        setBranding(toMap(settingsGroup.branding));
+        setOperations(toMap(settingsGroup.operations));
+        setApiRadius(toMap(settingsGroup.api_radius));
       }
     } catch {
       toast.error('Failed to load settings');
@@ -66,11 +75,12 @@ export default function SettingsPage() {
   ) {
     try {
       setSaving(true);
-      await api.bulkUpdateSettings(
-        Object.fromEntries(
-          Object.entries(settings).map(([k, v]) => [k, String(v)])
-        )
-      );
+      // Transform flat map to array of {key, value} as expected by the backend
+      const settingsArray = Object.entries(settings).map(([key, value]) => ({
+        key,
+        value: String(value),
+      }));
+      await api.bulkUpdateSettings(settingsArray);
       toast.success(`${category} settings saved`);
     } catch {
       toast.error(`Failed to save ${category.toLowerCase()} settings`);

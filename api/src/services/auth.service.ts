@@ -127,6 +127,15 @@ class AuthService {
       logger.error('Failed to send welcome SMS:', error);
     }
 
+    // Send email verification link
+    try {
+      const verifyToken = crypto.randomBytes(32).toString('hex');
+      await cache.set(`emailVerify:${verifyToken}`, result.user.id, 24 * 60 * 60); // 24h expiry
+      await emailService.sendVerificationEmail(result.user.email, verifyToken, result.user.firstName);
+    } catch (error) {
+      logger.error('Failed to send verification email:', error);
+    }
+
     logger.info(`User registered: ${result.user.email}`);
 
     return { user: result.user, tokens };
