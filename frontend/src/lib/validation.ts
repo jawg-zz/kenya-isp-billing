@@ -53,6 +53,16 @@ export const validators = {
     message,
   }),
 
+  // Lenient password: min 8 chars with at least one letter and one number
+  passwordSimple: (message = 'Password must be at least 8 characters with at least one letter and one number'): ValidationRule => ({
+    validate: (value: string) => {
+      return value.length >= 8 &&
+        /[a-zA-Z]/.test(value) &&
+        /[0-9]/.test(value);
+    },
+    message,
+  }),
+
   passwordMatch: (passwordGetter: () => string, message = 'Passwords do not match'): ValidationRule => ({
     validate: (value: string) => value === passwordGetter(),
     message,
@@ -162,5 +172,55 @@ export function createFieldValidator(
   return (value: string) => {
     const error = validateField(value, rules);
     onError(error);
+  };
+}
+
+// ---- Password Strength ----
+
+export interface PasswordStrength {
+  score: number; // 0-4
+  label: 'weak' | 'fair' | 'good' | 'strong' | 'excellent';
+  message: string;
+  color: string; // tailwind class for bar
+  bgColor: string; // tailwind class for bar bg
+}
+
+export function getPasswordStrength(password: string): PasswordStrength {
+  if (!password) {
+    return { score: 0, label: 'weak', message: '', color: 'bg-gray-300', bgColor: 'bg-gray-200' };
+  }
+
+  let score = 0;
+
+  // Length checks
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (password.length >= 16) score += 1;
+
+  // Character variety
+  if (/[a-z]/.test(password)) score += 1;
+  if (/[A-Z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password)) score += 1;
+  if (/[^a-zA-Z0-9]/.test(password)) score += 1;
+
+  // Normalize to 0-4
+  const normalized = Math.min(4, Math.floor(score / 1.75));
+
+  const levels: PasswordStrength['label'][] = ['weak', 'fair', 'good', 'strong', 'excellent'];
+  const messages = [
+    'Very weak — add length, numbers, and symbols',
+    'Fair — add uppercase letters and symbols',
+    'Good — could be stronger',
+    'Strong password',
+    'Excellent password',
+  ];
+  const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500', 'bg-emerald-500'];
+
+  return {
+    score: normalized,
+    label: levels[normalized],
+    message: messages[normalized],
+    color: colors[normalized],
+    bgColor: 'bg-gray-200 dark:bg-gray-700',
   };
 }

@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatCard } from '@/components/widgets/StatCard';
 import { format } from 'date-fns';
+import { getApiErrorMessage } from '@/lib/api-errors';
 import {
   Package,
   Wifi,
@@ -101,8 +102,7 @@ export default function CustomerPlansPage() {
       queryClient.invalidateQueries({ queryKey: ['usage-summary'] });
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to subscribe. Please try again.');
+      toast.error(getApiErrorMessage(err, 'Failed to subscribe. Please try again.'));
     },
   });
 
@@ -117,8 +117,7 @@ export default function CustomerPlansPage() {
       setCancelReason('');
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to cancel subscription.');
+      toast.error(getApiErrorMessage(err, 'Failed to cancel subscription.'));
     },
   });
 

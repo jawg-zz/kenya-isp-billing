@@ -11,8 +11,23 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
 import { User, Shield, MapPin, Phone, Mail, Building2, Key, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
 import { PhoneVerification } from '@/components/PhoneVerification';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage, getApiFieldErrors } from '@/lib/api-errors';
+
+const profileSchema = {
+  firstName: [validators.required('First name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+  lastName: [validators.required('Last name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+};
+
+const passwordSchema = {
+  currentPassword: [validators.required('Current password is required')],
+  newPassword: [validators.required('New password is required'), validators.passwordSimple()],
+  confirmPassword: [validators.required('Please confirm your new password')],
+};
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -34,6 +49,9 @@ export default function ProfilePage() {
     confirmPassword: '',
   });
 
+  const profileValidation = useFormValidation({ debounceMs: 400 });
+  const passwordValidation = useFormValidation({ debounceMs: 400 });
+
   const updateProfileMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       return api.updateProfile(data);
@@ -41,11 +59,17 @@ export default function ProfilePage() {
     onSuccess: () => {
       toast.success('Profile updated successfully');
       setIsEditing(false);
+      profileValidation.clearErrors();
       refreshUser();
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      const fieldErrors = getApiFieldErrors(err);
+      for (const [field, message] of Object.entries(fieldErrors)) {
+        profileValidation.setFieldError(field, message);
+      }
+      if (Object.keys(fieldErrors).length === 0) {
+        toast.error(getApiErrorMessage(err, 'Failed to update profile'));
+      }
     },
   });
 
@@ -57,28 +81,40 @@ export default function ProfilePage() {
       toast.success('Password changed successfully');
       setIsChangingPassword(false);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      passwordValidation.clearErrors();
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to change password');
+      toast.error(getApiErrorMessage(err, 'Failed to change password'));
     },
   });
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    const isValid = profileValidation.validateAll(
+      { firstName: form.firstName, lastName: form.lastName },
+      profileSchema
+    );
+    if (!isValid) return;
     updateProfileMutation.mutate(form);
   };
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    if (passwordForm.newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
+    const isValid = passwordValidation.validateAll(
+      {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      },
+      {
+        ...passwordSchema,
+        confirmPassword: [
+          validators.required('Please confirm your new password'),
+          validators.passwordMatch(() => passwordForm.newPassword, 'Passwords do not match'),
+        ],
+      }
+    );
+    if (!isValid) return;
     changePasswordMutation.mutate({
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
@@ -137,7 +173,10 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsEditing(!isEditing)}
+                  onClick={() => {
+                    setIsEditing(!isEditing);
+                    if (isEditing) profileValidation.clearErrors();
+                  }}
                 >
                   {isEditing ? 'Cancel' : 'Edit'}
                 </Button>
@@ -145,25 +184,34 @@ export default function ProfilePage() {
             />
 
             {isEditing ? (
-              <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <form onSubmit={handleUpdateProfile} className="space-y-4" noValidate>
                 <div className="grid grid-cols-2 gap-4">
                   <Input
                     label="First Name"
                     value={form.firstName}
-                    onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
-                    required
+                    onChange={(e) => {
+                      setForm((p) => ({ ...p, firstName: e.target.value }));
+                      profileValidation.validateFieldOnChange('firstName', e.target.value, profileSchema.firstName);
+                    }}
+                    onBlur={(e) => profileValidation.validateFieldOnBlur('firstName', e.target.value, profileSchema.firstName)}
+                    error={profileValidation.errors.firstName}
                   />
                   <Input
                     label="Last Name"
                     value={form.lastName}
-                    onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
-                    required
+                    onChange={(e) => {
+                      setForm((p) => ({ ...p, lastName: e.target.value }));
+                      profileValidation.validateFieldOnChange('lastName', e.target.value, profileSchema.lastName);
+                    }}
+                    onBlur={(e) => profileValidation.validateFieldOnBlur('lastName', e.target.value, profileSchema.lastName)}
+                    error={profileValidation.errors.lastName}
                   />
                 </div>
                 <Input
                   label="Phone"
                   value={form.phone}
                   onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                  error={profileValidation.errors.phone}
                 />
                 <Input
                   label="Address Line 1"
@@ -193,10 +241,10 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <Button type="submit" isLoading={updateProfileMutation.isPending}>
+                  <Button type="submit" isLoading={updateProfileMutation.isPending} disabled={updateProfileMutation.isPending}>
                     Save Changes
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setIsEditing(false)}>
+                  <Button type="button" variant="secondary" onClick={() => { setIsEditing(false); profileValidation.clearErrors(); }}>
                     Cancel
                   </Button>
                 </div>
@@ -264,37 +312,63 @@ export default function ProfilePage() {
             <Card>
               <CardHeader title="Security" />
               {isChangingPassword ? (
-                <form onSubmit={handleChangePassword} className="space-y-4">
+                <form onSubmit={handleChangePassword} className="space-y-4" noValidate>
                   <Input
                     label="Current Password"
                     type="password"
                     value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))}
-                    required
+                    onChange={(e) => {
+                      setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }));
+                      passwordValidation.validateFieldOnChange('currentPassword', e.target.value, passwordSchema.currentPassword);
+                    }}
+                    onBlur={(e) => passwordValidation.validateFieldOnBlur('currentPassword', e.target.value, passwordSchema.currentPassword)}
+                    error={passwordValidation.errors.currentPassword}
                   />
-                  <Input
-                    label="New Password"
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
-                    required
-                    helperText="Minimum 8 characters"
-                  />
+                  <div>
+                    <Input
+                      label="New Password"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => {
+                        setPasswordForm((p) => ({ ...p, newPassword: e.target.value }));
+                        passwordValidation.validateFieldOnChange('newPassword', e.target.value, passwordSchema.newPassword);
+                        if (passwordForm.confirmPassword) {
+                          passwordValidation.validateFieldOnChange('confirmPassword', passwordForm.confirmPassword, [
+                            validators.required('Please confirm your new password'),
+                            validators.passwordMatch(() => e.target.value, 'Passwords do not match'),
+                          ]);
+                        }
+                      }}
+                      onBlur={(e) => passwordValidation.validateFieldOnBlur('newPassword', e.target.value, passwordSchema.newPassword)}
+                      error={passwordValidation.errors.newPassword}
+                    />
+                    <PasswordStrengthMeter password={passwordForm.newPassword} />
+                  </div>
                   <Input
                     label="Confirm New Password"
                     type="password"
                     value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
-                    required
+                    onChange={(e) => {
+                      setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }));
+                      passwordValidation.validateFieldOnChange('confirmPassword', e.target.value, [
+                        validators.required('Please confirm your new password'),
+                        validators.passwordMatch(() => passwordForm.newPassword, 'Passwords do not match'),
+                      ]);
+                    }}
+                    onBlur={(e) => passwordValidation.validateFieldOnBlur('confirmPassword', e.target.value, [
+                      validators.required('Please confirm your new password'),
+                      validators.passwordMatch(() => passwordForm.newPassword, 'Passwords do not match'),
+                    ])}
+                    error={passwordValidation.errors.confirmPassword}
                   />
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" isLoading={changePasswordMutation.isPending}>
+                    <Button type="submit" isLoading={changePasswordMutation.isPending} disabled={changePasswordMutation.isPending}>
                       Update Password
                     </Button>
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => setIsChangingPassword(false)}
+                      onClick={() => { setIsChangingPassword(false); passwordValidation.clearErrors(); }}
                     >
                       Cancel
                     </Button>

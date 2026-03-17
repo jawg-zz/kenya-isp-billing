@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Wifi, Eye, EyeOff, Zap } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage } from '@/lib/api-errors';
+
+const emailRules = [validators.required('Email is required'), validators.email()];
+const passwordRules = [validators.required('Password is required')];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,9 +25,21 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+  const { errors, validateFieldOnChange, validateFieldOnBlur } = useFormValidation({ debounceMs: 400 });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate all fields before submit
+    if (!email.trim()) {
+      validateFieldOnBlur('email', email, emailRules);
+    }
+    if (!password) {
+      validateFieldOnBlur('password', password, passwordRules);
+    }
+
+    if (!email.trim() || !password) return;
+
     setIsLoading(true);
 
     try {
@@ -36,8 +54,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Invalid email or password');
+      toast.error(getApiErrorMessage(err, 'Invalid email or password'));
     } finally {
       setIsLoading(false);
     }
@@ -56,25 +73,33 @@ export default function LoginPage() {
 
         <Card hover>
           <CardHeader title="Sign In" description="Enter your credentials to access your account" />
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <Input
               label="Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                validateFieldOnChange('email', e.target.value, emailRules);
+              }}
+              onBlur={(e) => validateFieldOnBlur('email', e.target.value, emailRules)}
               placeholder="you@example.com"
-              required
               autoComplete="email"
+              error={errors.email}
             />
             <div className="relative">
               <Input
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  validateFieldOnChange('password', e.target.value, passwordRules);
+                }}
+                onBlur={(e) => validateFieldOnBlur('password', e.target.value, passwordRules)}
                 placeholder="Enter your password"
-                required
                 autoComplete="current-password"
+                error={errors.password}
               />
               <button
                 type="button"
@@ -98,7 +123,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+            <Button type="submit" className="w-full" size="lg" isLoading={isLoading} disabled={isLoading}>
               {!isLoading && <Zap className="h-4 w-4 mr-2" />}
               Sign In
             </Button>

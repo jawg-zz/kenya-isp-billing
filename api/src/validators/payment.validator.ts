@@ -1,87 +1,111 @@
 import { z } from 'zod';
-
-// Phone number validation (Kenyan format)
-const phoneSchema = z.string()
-  .regex(/^(\+254|0)[17]\d{8}$/, 'Invalid Kenyan phone number format');
+import {
+  phoneInputSchema,
+  uuidSchema,
+  optionalTrimmedString,
+  trimmedString,
+} from './common';
 
 // M-Pesa STK Push request
 export const mpesaSTKPushSchema = z.object({
-  phoneNumber: phoneSchema,
-  amount: z.number()
+  phoneNumber: phoneInputSchema,
+  amount: z
+    .number()
     .positive('Amount must be positive')
     .min(1, 'Minimum amount is KES 1')
     .max(150000, 'Maximum amount is KES 150,000'),
-  accountReference: z.string()
-    .min(1, 'Account reference is required')
-    .max(20, 'Account reference must not exceed 20 characters'),
-  transactionDesc: z.string()
-    .min(1, 'Transaction description is required')
-    .max(100, 'Transaction description must not exceed 100 characters'),
+  accountReference: trimmedString(1, 20, 'Account reference'),
+  transactionDesc: trimmedString(1, 100, 'Transaction description'),
 });
 
 // Airtel Money payment request
 export const airtelPaymentSchema = z.object({
-  phoneNumber: phoneSchema,
-  amount: z.number()
+  phoneNumber: phoneInputSchema,
+  amount: z
+    .number()
     .positive('Amount must be positive')
     .min(1, 'Minimum amount is KES 1')
     .max(150000, 'Maximum amount is KES 150,000'),
-  reference: z.string()
-    .min(1, 'Reference is required')
-    .max(50, 'Reference must not exceed 50 characters'),
-  description: z.string()
-    .max(200, 'Description must not exceed 200 characters')
-    .optional(),
+  reference: trimmedString(1, 50, 'Reference'),
+  description: optionalTrimmedString(200),
 });
 
 // Payment verification
-export const verifyPaymentSchema = z.object({
-  checkoutRequestId: z.string().optional(),
-  merchantRequestId: z.string().optional(),
-  reference: z.string().optional(),
-}).refine(
-  (data) => data.checkoutRequestId || data.merchantRequestId || data.reference,
-  { message: 'At least one identifier is required' }
-);
+export const verifyPaymentSchema = z
+  .object({
+    checkoutRequestId: z.string().trim().optional(),
+    merchantRequestId: z.string().trim().optional(),
+    reference: z.string().trim().optional(),
+  })
+  .refine(
+    (data) =>
+      !!(data.checkoutRequestId || data.merchantRequestId || data.reference),
+    {
+      message:
+        'At least one identifier is required (checkoutRequestId, merchantRequestId, or reference)',
+      path: ['checkoutRequestId'],
+    }
+  );
 
 // Payment filter for admin
 export const paymentFilterSchema = z.object({
-  status: z.enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED', 'TIMEOUT']).optional(),
-  method: z.enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD']).optional(),
-  customerId: z.string().uuid().optional(),
+  status: z
+    .enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED', 'TIMEOUT'])
+    .optional(),
+  method: z
+    .enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
+    .optional(),
+  customerId: uuidSchema.optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  minAmount: z.number().positive().optional(),
-  maxAmount: z.number().positive().optional(),
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().max(100).default(20),
+  minAmount: z.coerce.number().positive().optional(),
+  maxAmount: z.coerce.number().positive().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
 // Refund payment
 export const refundPaymentSchema = z.object({
-  paymentId: z.string().uuid('Invalid payment ID'),
-  reason: z.string().min(10, 'Reason must be at least 10 characters').max(500),
+  paymentId: uuidSchema,
+  reason: trimmedString(10, 500, 'Reason'),
 });
 
 // Cash payment (for agents)
 export const cashPaymentSchema = z.object({
-  customerId: z.string().uuid('Invalid customer ID'),
-  amount: z.number()
+  customerId: uuidSchema,
+  amount: z
+    .number()
     .positive('Amount must be positive')
     .min(1, 'Minimum amount is KES 1'),
-  reference: z.string().min(1, 'Reference is required'),
-  notes: z.string().max(500).optional(),
+  reference: trimmedString(1, 100, 'Reference'),
+  notes: optionalTrimmedString(500),
 });
 
 // Bank transfer payment
 export const bankTransferSchema = z.object({
-  amount: z.number()
+  amount: z
+    .number()
     .positive('Amount must be positive')
-    .min(100, 'Minimum amount for bank transfer is KES 100'),
-  bankName: z.string().min(1, 'Bank name is required'),
-  accountNumber: z.string().min(1, 'Account number is required'),
-  reference: z.string().min(1, 'Transaction reference is required'),
-  notes: z.string().max(500).optional(),
+    .min(100, 'Minimum amount for bank transfer is KES 100')
+    .max(1000000, 'Maximum amount for bank transfer is KES 1,000,000'),
+  bankName: trimmedString(1, 100, 'Bank name'),
+  accountNumber: trimmedString(1, 30, 'Account number'),
+  reference: trimmedString(1, 100, 'Transaction reference'),
+  notes: optionalTrimmedString(500),
+});
+
+// Record manual payment (admin)
+export const recordManualPaymentSchema = z.object({
+  customerId: uuidSchema,
+  invoiceId: uuidSchema.optional(),
+  subscriptionId: uuidSchema.optional(),
+  amount: z
+    .number()
+    .positive('Amount must be positive')
+    .min(1, 'Minimum amount is KES 1'),
+  method: z.enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD']),
+  reference: trimmedString(1, 100, 'Reference'),
+  notes: optionalTrimmedString(500),
 });
 
 export type MpesaSTKPushInput = z.infer<typeof mpesaSTKPushSchema>;
@@ -91,3 +115,4 @@ export type PaymentFilterInput = z.infer<typeof paymentFilterSchema>;
 export type RefundPaymentInput = z.infer<typeof refundPaymentSchema>;
 export type CashPaymentInput = z.infer<typeof cashPaymentSchema>;
 export type BankTransferInput = z.infer<typeof bankTransferSchema>;
+export type RecordManualPaymentInput = z.infer<typeof recordManualPaymentSchema>;

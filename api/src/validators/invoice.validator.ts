@@ -1,49 +1,97 @@
 import { z } from 'zod';
+import {
+  uuidSchema,
+  futureDateSchema,
+  optionalTrimmedString,
+  positiveDecimal,
+} from './common';
 
 // Create manual invoice (admin)
 export const createInvoiceSchema = z.object({
-  customerId: z.string().uuid('Invalid customer ID'),
-  subscriptionId: z.string().uuid('Invalid subscription ID').optional(),
-  items: z.array(z.object({
-    description: z.string().min(1, 'Description is required'),
-    quantity: z.number().int().positive('Quantity must be positive'),
-    unitPrice: z.number().positive('Unit price must be positive'),
-  })).min(1, 'At least one item is required'),
-  dueDate: z.string().datetime().optional(),
-  notes: z.string().max(1000).optional(),
+  customerId: uuidSchema,
+  subscriptionId: uuidSchema.optional(),
+  items: z
+    .array(
+      z.object({
+        description: z.string().trim().min(1, 'Description is required').max(200),
+        quantity: z.number().int().positive('Quantity must be positive'),
+        unitPrice: positiveDecimal('Unit price', { min: 0.01 }),
+      })
+    )
+    .min(1, 'At least one item is required')
+    .max(50, 'Cannot have more than 50 line items'),
+  dueDate: futureDateSchema.optional(),
+  notes: optionalTrimmedString(1000),
 });
 
 // Invoice filter
 export const invoiceFilterSchema = z.object({
-  status: z.enum(['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED', 'REFUNDED']).optional(),
-  customerId: z.string().uuid().optional(),
+  status: z
+    .enum(['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED', 'REFUNDED'])
+    .optional(),
+  customerId: uuidSchema.optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  minAmount: z.number().positive().optional(),
-  maxAmount: z.number().positive().optional(),
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().max(100).default(20),
+  minAmount: z.coerce.number().positive().optional(),
+  maxAmount: z.coerce.number().positive().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
 // Update invoice status
 export const updateInvoiceStatusSchema = z.object({
-  status: z.enum(['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED', 'REFUNDED']),
-  notes: z.string().max(1000).optional(),
+  status: z.enum([
+    'DRAFT',
+    'PENDING',
+    'PAID',
+    'OVERDUE',
+    'CANCELLED',
+    'REFUNDED',
+  ]),
+  notes: optionalTrimmedString(1000),
 });
 
 // Send invoice via email
 export const sendInvoiceSchema = z.object({
-  invoiceId: z.string().uuid('Invalid invoice ID'),
-  email: z.string().email('Invalid email address').optional(),
+  invoiceId: uuidSchema,
+  email: z
+    .string()
+    .email('Invalid email address')
+    .trim()
+    .toLowerCase()
+    .optional(),
   sendSms: z.boolean().default(true),
 });
 
 // Generate bulk invoices (admin)
-export const generateBulkInvoicesSchema = z.object({
-  customerId: z.string().uuid().optional(),
-  subscriptionIds: z.array(z.string().uuid()).optional(),
-  billingDate: z.string().datetime().optional(),
-  dueDays: z.number().int().positive().max(90).default(30),
+export const generateBulkInvoicesSchema = z
+  .object({
+    customerId: uuidSchema.optional(),
+    subscriptionIds: z.array(uuidSchema).max(100).optional(),
+    billingDate: z.string().datetime().optional(),
+    dueDays: z
+      .number()
+      .int()
+      .positive('Due days must be positive')
+      .max(90, 'Due days cannot exceed 90')
+      .default(30),
+  })
+  .refine(
+    (data) => data.customerId || data.subscriptionIds?.length,
+    {
+      message: 'Either customerId or subscriptionIds must be provided',
+      path: ['customerId'],
+    }
+  );
+
+// Bulk status update
+export const bulkInvoiceStatusSchema = z.object({
+  invoiceIds: z
+    .array(uuidSchema)
+    .min(1, 'At least one invoice ID is required')
+    .max(100, 'Cannot update more than 100 invoices at once'),
+  status: z.enum(['DRAFT', 'PENDING', 'PAID', 'OVERDUE', 'CANCELLED', 'REFUNDED']),
+  notes: optionalTrimmedString(1000),
 });
 
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
@@ -51,3 +99,4 @@ export type InvoiceFilterInput = z.infer<typeof invoiceFilterSchema>;
 export type UpdateInvoiceStatusInput = z.infer<typeof updateInvoiceStatusSchema>;
 export type SendInvoiceInput = z.infer<typeof sendInvoiceSchema>;
 export type GenerateBulkInvoicesInput = z.infer<typeof generateBulkInvoicesSchema>;
+export type BulkInvoiceStatusInput = z.infer<typeof bulkInvoiceStatusSchema>;

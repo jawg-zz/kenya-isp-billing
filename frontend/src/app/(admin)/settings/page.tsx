@@ -13,6 +13,9 @@ import {
   Save,
   Loader2,
 } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage } from '@/lib/api-errors';
 
 interface SettingEntry {
   key: string;
@@ -25,6 +28,7 @@ interface SettingsMap {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const validation = useFormValidation({ debounceMs: 500 });
 
   const [company, setCompany] = useState<SettingsMap>({});
   const [payment, setPayment] = useState<SettingsMap>({});
@@ -50,7 +54,6 @@ export default function SettingsPage() {
       setLoading(true);
       const res = await api.getSettings();
       if (res.success && res.data) {
-        // Backend returns: { settings: { company: [{key, value}], ... }, total }
         const settingsGroup = (res.data as any).settings || {};
         const toMap = (arr: SettingEntry[]): SettingsMap =>
           Object.fromEntries((arr || []).map((s) => [s.key, s.value]));
@@ -71,19 +74,37 @@ export default function SettingsPage() {
   async function saveSection(
     category: string,
     settings: SettingsMap,
-    setSaving: (v: boolean) => void
+    setSaving: (v: boolean) => void,
+    validationRules?: Record<string, { key: string; rules: import('@/lib/validation').ValidationRule[] }[]>
   ) {
+    // Validate fields if rules provided
+    if (validationRules) {
+      const values: Record<string, string> = {};
+      const schema: Record<string, import('@/lib/validation').ValidationRule[]> = {};
+      for (const group of Object.values(validationRules)) {
+        for (const { key, rules } of group) {
+          if (settings[key] !== undefined) {
+            values[key] = settings[key];
+            schema[key] = rules;
+          }
+        }
+      }
+      if (!validation.validateAll(values, schema)) {
+        toast.error('Please fix the validation errors before saving');
+        return;
+      }
+    }
+
     try {
       setSaving(true);
-      // Transform flat map to array of {key, value} as expected by the backend
       const settingsArray = Object.entries(settings).map(([key, value]) => ({
         key,
         value: String(value),
       }));
       await api.bulkUpdateSettings(settingsArray);
       toast.success(`${category} settings saved`);
-    } catch {
-      toast.error(`Failed to save ${category.toLowerCase()} settings`);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, `Failed to save ${category.toLowerCase()} settings`));
     } finally {
       setSaving(false);
     }
@@ -157,23 +178,30 @@ export default function SettingsPage() {
                     setCompany({ ...company, company_name: e.target.value })
                   }
                   placeholder="Acme ISP Ltd"
+                  error={validation.errors.company_name}
                 />
                 <Input
                   label="Company Email"
                   type="email"
                   value={company.company_email || ''}
-                  onChange={(e) =>
-                    setCompany({ ...company, company_email: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setCompany({ ...company, company_email: e.target.value });
+                    validation.validateFieldOnChange('company_email', e.target.value, [validators.email('Please enter a valid email')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('company_email', e.target.value, [validators.email('Please enter a valid email')])}
                   placeholder="billing@acme-isp.com"
+                  error={validation.errors.company_email}
                 />
                 <Input
                   label="Company Phone"
                   value={company.company_phone || ''}
-                  onChange={(e) =>
-                    setCompany({ ...company, company_phone: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setCompany({ ...company, company_phone: e.target.value });
+                    validation.validateFieldOnChange('company_phone', e.target.value, [validators.kenyaPhone('Please enter a valid phone number')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('company_phone', e.target.value, [validators.kenyaPhone('Please enter a valid phone number')])}
                   placeholder="+254700000000"
+                  error={validation.errors.company_phone}
                 />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -195,9 +223,12 @@ export default function SettingsPage() {
                 <div className="pt-2">
                   <Button
                     onClick={() =>
-                      saveSection('Company', company, setSavingCompany)
+                      saveSection('Company', company, setSavingCompany, {
+                        email: [{ key: 'company_email', rules: [validators.email('Please enter a valid email')] }],
+                      })
                     }
                     isLoading={savingCompany}
+                    disabled={savingCompany}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Save Company Settings
@@ -239,6 +270,7 @@ export default function SettingsPage() {
                       saveSection('Payment', payment, setSavingPayment)
                     }
                     isLoading={savingPayment}
+                    disabled={savingPayment}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Save Payment Settings
@@ -259,10 +291,13 @@ export default function SettingsPage() {
                   type="number"
                   step="0.01"
                   value={billing.tax_rate || ''}
-                  onChange={(e) =>
-                    setBilling({ ...billing, tax_rate: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setBilling({ ...billing, tax_rate: e.target.value });
+                    validation.validateFieldOnChange('tax_rate', e.target.value, [validators.number('Must be a number')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('tax_rate', e.target.value, [validators.number('Must be a number')])}
                   placeholder="16"
+                  error={validation.errors.tax_rate}
                 />
                 <Input
                   label="Tax Name"
@@ -276,13 +311,13 @@ export default function SettingsPage() {
                   label="Grace Period (days)"
                   type="number"
                   value={billing.grace_period_days || ''}
-                  onChange={(e) =>
-                    setBilling({
-                      ...billing,
-                      grace_period_days: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    setBilling({ ...billing, grace_period_days: e.target.value });
+                    validation.validateFieldOnChange('grace_period_days', e.target.value, [validators.positiveNumber('Must be a positive number')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('grace_period_days', e.target.value, [validators.positiveNumber('Must be a positive number')])}
                   placeholder="7"
+                  error={validation.errors.grace_period_days}
                 />
                 <div className="flex items-end pb-1">
                   <Toggle
@@ -303,6 +338,7 @@ export default function SettingsPage() {
                     saveSection('Billing', billing, setSavingBilling)
                   }
                   isLoading={savingBilling}
+                  disabled={savingBilling}
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save Billing Settings
@@ -419,6 +455,7 @@ export default function SettingsPage() {
                       saveSection('Branding', branding, setSavingBranding)
                     }
                     isLoading={savingBranding}
+                    disabled={savingBranding}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Save Branding Settings
@@ -448,13 +485,13 @@ export default function SettingsPage() {
                   label="Grace Days Before Suspension"
                   type="number"
                   value={operations.auto_suspend_grace_days || ''}
-                  onChange={(e) =>
-                    setOperations({
-                      ...operations,
-                      auto_suspend_grace_days: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    setOperations({ ...operations, auto_suspend_grace_days: e.target.value });
+                    validation.validateFieldOnChange('auto_suspend_grace_days', e.target.value, [validators.positiveNumber('Must be a positive number')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('auto_suspend_grace_days', e.target.value, [validators.positiveNumber('Must be a positive number')])}
                   placeholder="3"
+                  error={validation.errors.auto_suspend_grace_days}
                 />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -465,13 +502,13 @@ export default function SettingsPage() {
                       type="number"
                       step="0.1"
                       value={operations.late_fee_percentage || ''}
-                      onChange={(e) =>
-                        setOperations({
-                          ...operations,
-                          late_fee_percentage: e.target.value,
-                        })
-                      }
+                      onChange={(e) => {
+                        setOperations({ ...operations, late_fee_percentage: e.target.value });
+                        validation.validateFieldOnChange('late_fee_percentage', e.target.value, [validators.number('Must be a number')]);
+                      }}
+                      onBlur={(e) => validation.validateFieldOnBlur('late_fee_percentage', e.target.value, [validators.number('Must be a number')])}
                       placeholder="1.5"
+                      error={validation.errors.late_fee_percentage}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
                       %
@@ -493,13 +530,13 @@ export default function SettingsPage() {
                   label="Invoice Due Days"
                   type="number"
                   value={operations.invoice_due_days || ''}
-                  onChange={(e) =>
-                    setOperations({
-                      ...operations,
-                      invoice_due_days: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    setOperations({ ...operations, invoice_due_days: e.target.value });
+                    validation.validateFieldOnChange('invoice_due_days', e.target.value, [validators.positiveNumber('Must be a positive number')]);
+                  }}
+                  onBlur={(e) => validation.validateFieldOnBlur('invoice_due_days', e.target.value, [validators.positiveNumber('Must be a positive number')])}
                   placeholder="30"
+                  error={validation.errors.invoice_due_days}
                 />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -513,13 +550,13 @@ export default function SettingsPage() {
                       type="number"
                       className="pl-10"
                       value={operations.low_balance_alert_threshold || ''}
-                      onChange={(e) =>
-                        setOperations({
-                          ...operations,
-                          low_balance_alert_threshold: e.target.value,
-                        })
-                      }
+                      onChange={(e) => {
+                        setOperations({ ...operations, low_balance_alert_threshold: e.target.value });
+                        validation.validateFieldOnChange('low_balance_alert_threshold', e.target.value, [validators.positiveNumber('Must be a positive number')]);
+                      }}
+                      onBlur={(e) => validation.validateFieldOnBlur('low_balance_alert_threshold', e.target.value, [validators.positiveNumber('Must be a positive number')])}
                       placeholder="1000"
+                      error={validation.errors.low_balance_alert_threshold}
                     />
                   </div>
                 </div>
@@ -529,6 +566,7 @@ export default function SettingsPage() {
                       saveSection('Operations', operations, setSavingOperations)
                     }
                     isLoading={savingOperations}
+                    disabled={savingOperations}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Save Operations Settings
@@ -556,10 +594,19 @@ export default function SettingsPage() {
                 <Input
                   label="RADIUS NAS IP"
                   value={apiRadius.radius_nas_ip || ''}
-                  onChange={(e) =>
-                    setApiRadius({ ...apiRadius, radius_nas_ip: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setApiRadius({ ...apiRadius, radius_nas_ip: e.target.value });
+                    if (e.target.value) {
+                      validation.validateFieldOnChange('radius_nas_ip', e.target.value, [validators.ipAddress('Please enter a valid IP address')]);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value) {
+                      validation.validateFieldOnBlur('radius_nas_ip', e.target.value, [validators.ipAddress('Please enter a valid IP address')]);
+                    }
+                  }}
                   placeholder="192.168.1.1"
+                  error={validation.errors.radius_nas_ip}
                 />
                 <Input
                   label="RADIUS NAS Port"
@@ -619,6 +666,7 @@ export default function SettingsPage() {
                     saveSection('API/RADIUS', apiRadius, setSavingApiRadius)
                   }
                   isLoading={savingApiRadius}
+                  disabled={savingApiRadius}
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save API / RADIUS Settings

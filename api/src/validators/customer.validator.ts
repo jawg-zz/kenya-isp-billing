@@ -1,71 +1,92 @@
 import { z } from 'zod';
-
-// Phone number validation
-const phoneSchema = z.string()
-  .regex(/^(\+254|0)[17]\d{8}$/, 'Invalid Kenyan phone number format');
+import {
+  emailSchema,
+  phoneInputSchema,
+  passwordSchema,
+  trimmedString,
+  optionalTrimmedString,
+  countySchema,
+  idNumberSchema,
+  kraPinSchema,
+  uuidSchema,
+  positiveDecimal,
+} from './common';
 
 // Create customer (admin)
 export const createCustomerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  firstName: z.string().min(2).max(50),
-  lastName: z.string().min(2).max(50),
-  phone: phoneSchema,
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  county: z.string().optional(),
-  postalCode: z.string().optional(),
-  idNumber: z.string().regex(/^\d{8}$/).optional(),
-  kraPin: z.string().regex(/^[A-Z]{1}\d{9}[A-Z]{1}$/).optional(),
-  creditLimit: z.number().min(0).default(0),
-  notes: z.string().max(500).optional(),
+  email: emailSchema,
+  password: passwordSchema,
+  firstName: trimmedString(2, 50, 'First name'),
+  lastName: trimmedString(2, 50, 'Last name'),
+  phone: phoneInputSchema,
+  addressLine1: optionalTrimmedString(200),
+  addressLine2: optionalTrimmedString(200),
+  city: optionalTrimmedString(100),
+  county: countySchema.optional(),
+  postalCode: z.string().trim().max(10).optional(),
+  idNumber: idNumberSchema.optional(),
+  kraPin: kraPinSchema.optional(),
+  creditLimit: z
+    .number()
+    .nonnegative('Credit limit cannot be negative')
+    .default(0),
+  notes: optionalTrimmedString(500),
 });
 
 // Update customer (admin)
 export const updateCustomerSchema = z.object({
-  firstName: z.string().min(2).max(50).optional(),
-  lastName: z.string().min(2).max(50).optional(),
-  phone: phoneSchema.optional(),
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  county: z.string().optional(),
-  postalCode: z.string().optional(),
-  idNumber: z.string().regex(/^\d{8}$/).optional(),
-  kraPin: z.string().regex(/^[A-Z]{1}\d{9}[A-Z]{1}$/).optional(),
-  creditLimit: z.number().min(0).optional(),
-  accountStatus: z.enum(['ACTIVE', 'SUSPENDED', 'TERMINATED', 'PENDING_VERIFICATION']).optional(),
-  notes: z.string().max(500).optional(),
+  firstName: trimmedString(2, 50, 'First name').optional(),
+  lastName: trimmedString(2, 50, 'Last name').optional(),
+  phone: phoneInputSchema.optional(),
+  addressLine1: optionalTrimmedString(200),
+  addressLine2: optionalTrimmedString(200),
+  city: optionalTrimmedString(100),
+  county: countySchema.optional(),
+  postalCode: z.string().trim().max(10).optional(),
+  idNumber: idNumberSchema.optional(),
+  kraPin: kraPinSchema.optional(),
+  creditLimit: z.number().nonnegative('Credit limit cannot be negative').optional(),
+  accountStatus: z
+    .enum(['ACTIVE', 'SUSPENDED', 'TERMINATED', 'PENDING_VERIFICATION'])
+    .optional(),
+  notes: optionalTrimmedString(500),
 });
 
 // Customer filter
 export const customerFilterSchema = z.object({
-  status: z.enum(['ACTIVE', 'SUSPENDED', 'TERMINATED', 'PENDING_VERIFICATION']).optional(),
-  county: z.string().optional(),
+  status: z
+    .enum(['ACTIVE', 'SUSPENDED', 'TERMINATED', 'PENDING_VERIFICATION'])
+    .optional(),
+  county: countySchema.optional(),
   networkProvider: z.enum(['SAFARICOM', 'AIRTEL', 'TELKOM', 'OTHER']).optional(),
-  search: z.string().optional(), // Search by name, email, phone, customer code
-  hasActiveSubscription: z.boolean().optional(),
-  sortBy: z.enum(['createdAt', 'firstName', 'lastName', 'accountNumber']).default('createdAt'),
+  search: z.string().trim().optional(),
+  hasActiveSubscription: z
+    .union([z.boolean(), z.string()])
+    .transform((val) => {
+      if (typeof val === 'boolean') return val;
+      if (val === 'true') return true;
+      if (val === 'false') return false;
+      return undefined;
+    })
+    .optional(),
+  sortBy: z
+    .enum(['createdAt', 'firstName', 'lastName', 'accountNumber'])
+    .default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().max(100).default(20),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
 // Adjust customer balance
 export const adjustBalanceSchema = z.object({
   amount: z.number().refine((val) => val !== 0, 'Amount cannot be zero'),
-  reason: z.string().min(10, 'Reason must be at least 10 characters').max(500),
+  reason: trimmedString(10, 500, 'Reason'),
   type: z.enum(['CREDIT', 'DEBIT']),
 });
 
 // Add customer notes
 export const addCustomerNotesSchema = z.object({
-  notes: z.string().min(1, 'Notes cannot be empty').max(1000),
+  notes: trimmedString(1, 1000, 'Notes'),
   isInternal: z.boolean().default(false),
 });
 

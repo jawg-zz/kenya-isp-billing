@@ -10,7 +10,20 @@ import api from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
 import { Wifi, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage, getApiFieldErrors } from '@/lib/api-errors';
+
+const schema = {
+  firstName: [validators.required('First name is required'), validators.minLength(2, 'First name must be at least 2 characters')],
+  lastName: [validators.required('Last name is required'), validators.minLength(2, 'Last name must be at least 2 characters')],
+  email: [validators.required('Email is required'), validators.email()],
+  phone: [validators.required('Phone number is required'), validators.kenyaPhone()],
+  password: [validators.required('Password is required'), validators.passwordSimple()],
+  confirmPassword: [validators.required('Please confirm your password')],
+};
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -29,23 +42,68 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
+  const { errors, validateFieldOnChange, validateFieldOnBlur, validateAll, clearErrors, setFieldError } = useFormValidation({ debounceMs: 400 });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name in schema) {
+      const rules = schema[name as keyof typeof schema];
+      // For confirmPassword, use a dynamic rule that checks against current password
+      if (name === 'confirmPassword') {
+        const confirmRules = [
+          validators.required('Please confirm your password'),
+          validators.passwordMatch(() => form.password, 'Passwords do not match'),
+        ];
+        validateFieldOnChange(name, value, confirmRules);
+      } else {
+        validateFieldOnChange(name, value, rules);
+      }
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name in schema) {
+      if (name === 'confirmPassword') {
+        const confirmRules = [
+          validators.required('Please confirm your password'),
+          validators.passwordMatch(() => form.password, 'Passwords do not match'),
+        ];
+        validateFieldOnBlur(name, value, confirmRules);
+      } else {
+        validateFieldOnBlur(name, value, schema[name as keyof typeof schema]);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearErrors();
 
-    if (form.password !== form.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    // Build full schema including confirmPassword
+    const fullSchema = {
+      ...schema,
+      confirmPassword: [
+        validators.required('Please confirm your password'),
+        validators.passwordMatch(() => form.password, 'Passwords do not match'),
+      ],
+    };
 
-    if (form.password.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
+    const isValid = validateAll(
+      {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+      },
+      fullSchema
+    );
+
+    if (!isValid) return;
 
     setIsLoading(true);
 
@@ -71,8 +129,15 @@ export default function RegisterPage() {
         router.push('/dashboard');
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+      // Map backend field errors to inline errors
+      const fieldErrors = getApiFieldErrors(err);
+      for (const [field, message] of Object.entries(fieldErrors)) {
+        setFieldError(field, message);
+      }
+      // Show a toast for any unmapped error
+      if (Object.keys(fieldErrors).length === 0 || !fieldErrors.email) {
+        toast.error(getApiErrorMessage(err, 'Registration failed. Please try again.'));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -91,23 +156,25 @@ export default function RegisterPage() {
 
         <Card hover>
           <CardHeader title="Sign Up" description="Fill in your details to create an account" />
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="First Name"
                 name="firstName"
                 value={form.firstName}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="John"
-                required
+                error={errors.firstName}
               />
               <Input
                 label="Last Name"
                 name="lastName"
                 value={form.lastName}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="Doe"
-                required
+                error={errors.lastName}
               />
             </div>
 
@@ -117,9 +184,10 @@ export default function RegisterPage() {
               name="email"
               value={form.email}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="you@example.com"
-              required
               autoComplete="email"
+              error={errors.email}
             />
 
             <Input
@@ -128,9 +196,10 @@ export default function RegisterPage() {
               name="phone"
               value={form.phone}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="+254 7XX XXX XXX"
-              required
               helperText="We'll send payment confirmations to this number"
+              error={errors.phone}
             />
 
             <div className="relative">
@@ -140,9 +209,10 @@ export default function RegisterPage() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="Minimum 8 characters"
-                required
                 autoComplete="new-password"
+                error={errors.password}
               />
               <button
                 type="button"
@@ -153,15 +223,18 @@ export default function RegisterPage() {
               </button>
             </div>
 
+            <PasswordStrengthMeter password={form.password} />
+
             <Input
               label="Confirm Password"
               type="password"
               name="confirmPassword"
               value={form.confirmPassword}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="Repeat your password"
-              required
               autoComplete="new-password"
+              error={errors.confirmPassword}
             />
 
             <div className="pt-2">
@@ -200,7 +273,7 @@ export default function RegisterPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+            <Button type="submit" className="w-full" size="lg" isLoading={isLoading} disabled={isLoading}>
               {!isLoading && <UserPlus className="h-4 w-4 mr-2" />}
               Create Account
             </Button>

@@ -15,6 +15,9 @@ import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/Badge';
 import { format } from 'date-fns';
 import { ArrowLeft, User, Mail, Phone, MapPin, CreditCard, FileText, Shield } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage, getApiFieldErrors } from '@/lib/api-errors';
 
 function formatKES(amount: number): string {
   return new Intl.NumberFormat('en-KE', {
@@ -55,6 +58,11 @@ interface Customer {
   }>;
 }
 
+const editSchema = {
+  firstName: [validators.required('First name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+  lastName: [validators.required('Last name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+};
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -74,6 +82,8 @@ export default function CustomerDetailPage() {
     accountStatus: 'ACTIVE',
   });
 
+  const formValidation = useFormValidation({ debounceMs: 400 });
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['customer-detail', customerId],
     queryFn: async () => {
@@ -90,11 +100,18 @@ export default function CustomerDetailPage() {
     onSuccess: () => {
       toast.success('Customer updated successfully');
       setIsEditing(false);
+      formValidation.clearErrors();
       queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
     },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Failed to update customer');
+    onError: (err: unknown) => {
+      const fieldErrors = getApiFieldErrors(err);
+      for (const [field, message] of Object.entries(fieldErrors)) {
+        formValidation.setFieldError(field, message);
+      }
+      if (Object.keys(fieldErrors).length === 0) {
+        toast.error(getApiErrorMessage(err, 'Failed to update customer'));
+      }
     },
   });
 
@@ -113,10 +130,29 @@ export default function CustomerDetailPage() {
       });
     }
     setIsEditing(true);
+    formValidation.clearErrors();
   };
 
   const handleSave = () => {
+    const isValid = formValidation.validateAll(
+      { firstName: editForm.firstName, lastName: editForm.lastName },
+      editSchema
+    );
+    if (!isValid) return;
     updateMutation.mutate(editForm);
+  };
+
+  const handleEditChange = (field: string, value: string) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+    if (field in editSchema) {
+      formValidation.validateFieldOnChange(field, value, editSchema[field as keyof typeof editSchema]);
+    }
+  };
+
+  const handleEditBlur = (field: string, value: string) => {
+    if (field in editSchema) {
+      formValidation.validateFieldOnBlur(field, value, editSchema[field as keyof typeof editSchema]);
+    }
   };
 
   if (!user) return null;
@@ -156,7 +192,7 @@ export default function CustomerDetailPage() {
           <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to Customers
           </Link>
-          <Button variant="secondary" size="sm" onClick={isEditing ? () => setIsEditing(false) : startEditing}>
+          <Button variant="secondary" size="sm" onClick={isEditing ? () => { setIsEditing(false); formValidation.clearErrors(); } : startEditing}>
             {isEditing ? 'Cancel' : 'Edit Customer'}
           </Button>
         </div>
@@ -189,9 +225,26 @@ export default function CustomerDetailPage() {
             <CardHeader title="Contact Information" />
             {isEditing ? (
               <div className="space-y-4">
-                <Input label="First Name" value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />
-                <Input label="Last Name" value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
-                <Input label="Phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                <Input
+                  label="First Name"
+                  value={editForm.firstName}
+                  onChange={(e) => handleEditChange('firstName', e.target.value)}
+                  onBlur={(e) => handleEditBlur('firstName', e.target.value)}
+                  error={formValidation.errors.firstName}
+                />
+                <Input
+                  label="Last Name"
+                  value={editForm.lastName}
+                  onChange={(e) => handleEditChange('lastName', e.target.value)}
+                  onBlur={(e) => handleEditBlur('lastName', e.target.value)}
+                  error={formValidation.errors.lastName}
+                />
+                <Input
+                  label="Phone"
+                  value={editForm.phone}
+                  onChange={(e) => handleEditChange('phone', e.target.value)}
+                  error={formValidation.errors.phone}
+                />
               </div>
             ) : (
               <div className="space-y-4">
@@ -284,6 +337,7 @@ export default function CustomerDetailPage() {
                   className="w-full"
                   onClick={handleSave}
                   isLoading={updateMutation.isPending}
+                  disabled={updateMutation.isPending}
                 >
                   Save Changes
                 </Button>
@@ -349,6 +403,7 @@ function BalanceAdjustmentCard({ customerId, onSuccess }: { customerId: string; 
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const queryClient = useQueryClient();
+  const validation = useFormValidation({ debounceMs: 300 });
 
   const adjustMutation = useMutation({
     mutationFn: async ({ amount, reason }: { amount: number; reason: string }) => {
@@ -358,32 +413,43 @@ function BalanceAdjustmentCard({ customerId, onSuccess }: { customerId: string; 
       toast.success('Balance adjusted successfully');
       setAmount('');
       setReason('');
+      validation.clearErrors();
       onSuccess();
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to adjust balance');
+      toast.error(getApiErrorMessage(err, 'Failed to adjust balance'));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount === 0) {
-      toast.error('Please enter a valid amount');
+
+    // Validate
+    const isValid = validation.validateAll(
+      { amount, reason },
+      {
+        amount: [
+          validators.required('Amount is required'),
+          validators.number('Please enter a valid number'),
+        ],
+        reason: [validators.required('Please provide a reason for the adjustment')],
+      }
+    );
+    if (!isValid) return;
+
+    if (numAmount === 0) {
+      validation.setFieldError('amount', 'Amount cannot be zero');
       return;
     }
-    if (!reason.trim()) {
-      toast.error('Please provide a reason for the adjustment');
-      return;
-    }
+
     adjustMutation.mutate({ amount: numAmount, reason: reason.trim() });
   };
 
   return (
     <Card>
       <CardHeader title="Balance Adjustment" description="Add credit or debit the customer account" />
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
           <label htmlFor="balance-amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Amount (KES)
@@ -394,9 +460,22 @@ function BalanceAdjustmentCard({ customerId, onSuccess }: { customerId: string; 
             step="0.01"
             placeholder="e.g. 500 or -200"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            onChange={(e) => {
+              setAmount(e.target.value);
+              validation.validateFieldOnChange('amount', e.target.value, [
+                validators.required('Amount is required'),
+                validators.number('Please enter a valid number'),
+              ]);
+            }}
+            onBlur={(e) => validation.validateFieldOnBlur('amount', e.target.value, [
+              validators.required('Amount is required'),
+              validators.number('Please enter a valid number'),
+            ])}
+            className={`block w-full rounded-lg border px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+              validation.errors.amount ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-600'
+            }`}
           />
+          {validation.errors.amount && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validation.errors.amount}</p>}
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Positive = credit, Negative = debit</p>
         </div>
         <div>
@@ -407,12 +486,19 @@ function BalanceAdjustmentCard({ customerId, onSuccess }: { customerId: string; 
             id="balance-reason"
             placeholder="Reason for this adjustment..."
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              setReason(e.target.value);
+              validation.validateFieldOnChange('reason', e.target.value, [validators.required('Please provide a reason for the adjustment')]);
+            }}
+            onBlur={(e) => validation.validateFieldOnBlur('reason', e.target.value, [validators.required('Please provide a reason for the adjustment')])}
             rows={3}
-            className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className={`block w-full rounded-lg border px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 ${
+              validation.errors.reason ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-600'
+            }`}
           />
+          {validation.errors.reason && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validation.errors.reason}</p>}
         </div>
-        <Button type="submit" className="w-full" isLoading={adjustMutation.isPending}>
+        <Button type="submit" className="w-full" isLoading={adjustMutation.isPending} disabled={adjustMutation.isPending}>
           Apply Adjustment
         </Button>
       </form>

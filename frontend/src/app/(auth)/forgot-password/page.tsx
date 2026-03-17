@@ -9,14 +9,26 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Wifi } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage } from '@/lib/api-errors';
+
+const emailRules = [validators.required('Email is required'), validators.email()];
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const { errors, validateFieldOnChange, validateFieldOnBlur } = useFormValidation({ debounceMs: 400 });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!email.trim()) {
+      validateFieldOnBlur('email', email, emailRules);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -29,8 +41,7 @@ export default function ForgotPasswordPage() {
       toast.success('Reset code sent to your phone!');
       setIsSubmitted(true);
     } catch (err: unknown) {
-      const error = err as Error;
-      toast.error(error.message || 'Failed to send reset code');
+      toast.error(getApiErrorMessage(err, 'Failed to send reset code. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -59,18 +70,22 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <Input
                 label="Email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  validateFieldOnChange('email', e.target.value, emailRules);
+                }}
+                onBlur={(e) => validateFieldOnBlur('email', e.target.value, emailRules)}
                 placeholder="you@example.com"
-                required
                 autoComplete="email"
+                error={errors.email}
               />
 
-              <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+              <Button type="submit" className="w-full" size="lg" isLoading={isLoading} disabled={isLoading}>
                 Send Reset Code
               </Button>
 

@@ -2,8 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '../types';
 
-export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') => {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+/**
+ * Validate request data against a Zod schema.
+ * Optionally specify the source: 'body' (default), 'query', or 'params'.
+ */
+export const validate =
+  (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') =>
+  (req: Request, _res: Response, next: NextFunction): void => {
     try {
       const data = schema.parse(req[source]);
       req[source] = data;
@@ -11,7 +16,7 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
     } catch (error) {
       if (error instanceof ZodError) {
         const errors: Record<string, string[]> = {};
-        
+
         error.errors.forEach((err) => {
           const path = err.path.join('.');
           if (!errors[path]) {
@@ -26,13 +31,18 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
       }
     }
   };
-};
 
-// Sanitize input
-export const sanitize = (req: Request, _res: Response, next: NextFunction): void => {
+/**
+ * Sanitize input: trim whitespace, strip XSS vectors.
+ * Applied to body and query.
+ */
+export const sanitize = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
   const sanitizeString = (str: string): string => {
     if (typeof str !== 'string') return str;
-    // Remove potential XSS
     return str
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/javascript:/gi, '')

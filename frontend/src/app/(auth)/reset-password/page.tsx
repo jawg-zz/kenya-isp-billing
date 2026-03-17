@@ -10,7 +10,13 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
 import { Wifi } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage } from '@/lib/api-errors';
+
+const passwordRules = [validators.required('Password is required'), validators.passwordSimple()];
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -20,19 +26,23 @@ function ResetPasswordForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { errors, validateFieldOnChange, validateFieldOnBlur, validateAll, setFieldError } = useFormValidation({ debounceMs: 400 });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    const isValid = validateAll(
+      { password, confirmPassword },
+      {
+        password: [validators.required('Password is required'), validators.passwordSimple()],
+        confirmPassword: [
+          validators.required('Please confirm your password'),
+          validators.passwordMatch(() => password, 'Passwords do not match'),
+        ],
+      }
+    );
 
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
+    if (!isValid) return;
 
     setIsLoading(true);
 
@@ -46,8 +56,7 @@ function ResetPasswordForm() {
       toast.success('Password reset successfully!');
       router.push('/login');
     } catch (err: unknown) {
-      const error = err as Error;
-      toast.error(error.message || 'Failed to reset password');
+      toast.error(getApiErrorMessage(err, 'Failed to reset password. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -93,28 +102,52 @@ function ResetPasswordForm() {
 
         <Card>
           <CardHeader title="Reset Password" description="Choose a new password for your account" />
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="New Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="new-password"
-            />
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div>
+              <Input
+                label="New Password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  validateFieldOnChange('password', e.target.value, passwordRules);
+                  // Re-validate confirm password when password changes
+                  if (confirmPassword) {
+                    validateFieldOnChange('confirmPassword', confirmPassword, [
+                      validators.required('Please confirm your password'),
+                      validators.passwordMatch(() => e.target.value, 'Passwords do not match'),
+                    ]);
+                  }
+                }}
+                onBlur={(e) => validateFieldOnBlur('password', e.target.value, passwordRules)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                error={errors.password}
+              />
+              <PasswordStrengthMeter password={password} />
+            </div>
 
             <Input
               label="Confirm Password"
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                validateFieldOnChange('confirmPassword', e.target.value, [
+                  validators.required('Please confirm your password'),
+                  validators.passwordMatch(() => password, 'Passwords do not match'),
+                ]);
+              }}
+              onBlur={(e) => validateFieldOnBlur('confirmPassword', e.target.value, [
+                validators.required('Please confirm your password'),
+                validators.passwordMatch(() => password, 'Passwords do not match'),
+              ])}
               placeholder="••••••••"
-              required
               autoComplete="new-password"
+              error={errors.confirmPassword}
             />
 
-            <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+            <Button type="submit" className="w-full" size="lg" isLoading={isLoading} disabled={isLoading}>
               Reset Password
             </Button>
 

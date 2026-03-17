@@ -13,6 +13,9 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ArrowLeft, UserPlus } from 'lucide-react';
+import { useFormValidation } from '@/lib/hooks/useFormValidation';
+import { validators } from '@/lib/validation';
+import { getApiErrorMessage, getApiFieldErrors } from '@/lib/api-errors';
 
 interface CustomerForm {
   firstName: string;
@@ -29,9 +32,17 @@ interface CustomerForm {
   notes: string;
 }
 
+const schema = {
+  firstName: [validators.required('First name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+  lastName: [validators.required('Last name is required'), validators.minLength(2, 'Must be at least 2 characters')],
+  email: [validators.required('Email is required'), validators.email()],
+  phone: [validators.required('Phone number is required'), validators.kenyaPhone()],
+};
+
 export default function NewCustomerPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { errors, validateFieldOnChange, validateFieldOnBlur, validateAll, setFieldError } = useFormValidation({ debounceMs: 400 });
 
   const [form, setForm] = useState<CustomerForm>({
     firstName: '',
@@ -50,15 +61,20 @@ export default function NewCustomerPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CustomerForm) => {
-      return api.createCustomer(data);
+      return api.createCustomer(data as Record<string, unknown>);
     },
     onSuccess: () => {
       toast.success('Customer created successfully');
       router.push('/customers');
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error.response?.data?.message || 'Failed to create customer');
+      const fieldErrors = getApiFieldErrors(err);
+      for (const [field, message] of Object.entries(fieldErrors)) {
+        setFieldError(field, message);
+      }
+      if (Object.keys(fieldErrors).length === 0) {
+        toast.error(getApiErrorMessage(err, 'Failed to create customer'));
+      }
     },
   });
 
@@ -67,14 +83,31 @@ export default function NewCustomerPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name in schema) {
+      validateFieldOnChange(name, value, schema[name as keyof typeof schema]);
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name in schema) {
+      validateFieldOnBlur(name, value, schema[name as keyof typeof schema]);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.phone) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+    const isValid = validateAll(
+      {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+      },
+      schema
+    );
+    if (!isValid) return;
     createMutation.mutate(form);
   };
 
@@ -88,34 +121,56 @@ export default function NewCustomerPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Add New Customer</h1>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <Card>
             <CardHeader title="Personal Information" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">First Name *</label>
-                <Input name="firstName" value={form.firstName} onChange={handleChange} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Last Name *</label>
-                <Input name="lastName" value={form.lastName} onChange={handleChange} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email *</label>
-                <Input name="email" type="email" value={form.email} onChange={handleChange} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Phone *</label>
-                <Input name="phone" value={form.phone} onChange={handleChange} required placeholder="+254..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">ID Number</label>
-                <Input name="idNumber" value={form.idNumber} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">KRA PIN</label>
-                <Input name="kraPin" value={form.kraPin} onChange={handleChange} />
-              </div>
+              <Input
+                label="First Name *"
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.firstName}
+              />
+              <Input
+                label="Last Name *"
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.lastName}
+              />
+              <Input
+                label="Email *"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.email}
+              />
+              <Input
+                label="Phone *"
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="+254..."
+                error={errors.phone}
+              />
+              <Input
+                label="ID Number"
+                name="idNumber"
+                value={form.idNumber}
+                onChange={handleChange}
+              />
+              <Input
+                label="KRA PIN"
+                name="kraPin"
+                value={form.kraPin}
+                onChange={handleChange}
+              />
             </div>
           </Card>
 
@@ -123,25 +178,39 @@ export default function NewCustomerPage() {
             <CardHeader title="Address" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Address Line 1</label>
-                <Input name="addressLine1" value={form.addressLine1} onChange={handleChange} />
+                <Input
+                  label="Address Line 1"
+                  name="addressLine1"
+                  value={form.addressLine1}
+                  onChange={handleChange}
+                />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Address Line 2</label>
-                <Input name="addressLine2" value={form.addressLine2} onChange={handleChange} />
+                <Input
+                  label="Address Line 2"
+                  name="addressLine2"
+                  value={form.addressLine2}
+                  onChange={handleChange}
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">City</label>
-                <Input name="city" value={form.city} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">County</label>
-                <Input name="county" value={form.county} onChange={handleChange} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Postal Code</label>
-                <Input name="postalCode" value={form.postalCode} onChange={handleChange} />
-              </div>
+              <Input
+                label="City"
+                name="city"
+                value={form.city}
+                onChange={handleChange}
+              />
+              <Input
+                label="County"
+                name="county"
+                value={form.county}
+                onChange={handleChange}
+              />
+              <Input
+                label="Postal Code"
+                name="postalCode"
+                value={form.postalCode}
+                onChange={handleChange}
+              />
             </div>
           </Card>
 
@@ -161,7 +230,7 @@ export default function NewCustomerPage() {
             <Link href="/customers">
               <Button type="button" variant="secondary">Cancel</Button>
             </Link>
-            <Button type="submit" isLoading={createMutation.isPending}>
+            <Button type="submit" isLoading={createMutation.isPending} disabled={createMutation.isPending}>
               <UserPlus className="h-4 w-4 mr-2" /> Create Customer
             </Button>
           </div>

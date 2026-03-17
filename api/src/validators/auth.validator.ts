@@ -1,97 +1,96 @@
 import { z } from 'zod';
+import {
+  emailSchema,
+  phoneInputSchema,
+  passwordSchema,
+  trimmedString,
+  countySchema,
+  optionalTrimmedString,
+  idNumberSchema,
+} from './common';
 
-// Phone number validation (Kenyan format)
-const phoneSchema = z.string()
-  .regex(/^(\+254|0)[17]\d{8}$/, 'Invalid Kenyan phone number format. Use +254XXXXXXXXX or 07XXXXXXXX');
-
-export const registerSchema = z.object({
-  email: z.string()
-    .email('Invalid email address')
-    .min(5, 'Email must be at least 5 characters')
-    .max(100, 'Email must not exceed 100 characters'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmPassword: z.string(),
-  firstName: z.string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name must not exceed 50 characters'),
-  lastName: z.string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name must not exceed 50 characters'),
-  phone: phoneSchema,
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  county: z.string().optional(),
-  postalCode: z.string().optional(),
-  idNumber: z.string()
-    .regex(/^\d{8}$/, 'Invalid Kenyan ID number format')
-    .optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
+export const registerSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string(),
+    firstName: trimmedString(2, 50, 'First name'),
+    lastName: trimmedString(2, 50, 'Last name'),
+    phone: phoneInputSchema,
+    addressLine1: optionalTrimmedString(200),
+    addressLine2: optionalTrimmedString(200),
+    city: optionalTrimmedString(100),
+    county: countySchema.optional(),
+    postalCode: z.string().trim().max(10).optional(),
+    idNumber: idNumberSchema.optional(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: emailSchema,
   password: z.string().min(1, 'Password is required'),
 });
 
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  refreshToken: z.string().trim().min(1, 'Refresh token is required'),
 });
 
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmNewPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmNewPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmNewPassword'],
-});
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: passwordSchema,
+    confirmNewPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmNewPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmNewPassword'],
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: 'New password must be different from current password',
+    path: ['newPassword'],
+  });
 
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(2).max(50).optional(),
-  lastName: z.string().min(2).max(50).optional(),
-  phone: phoneSchema.optional(),
-  addressLine1: z.string().optional(),
-  addressLine2: z.string().optional(),
-  city: z.string().optional(),
-  county: z.string().optional(),
-  postalCode: z.string().optional(),
-  preferredPayment: z.enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD']).optional(),
+  firstName: trimmedString(2, 50, 'First name').optional(),
+  lastName: trimmedString(2, 50, 'Last name').optional(),
+  phone: phoneInputSchema.optional(),
+  addressLine1: optionalTrimmedString(200),
+  addressLine2: optionalTrimmedString(200),
+  city: optionalTrimmedString(100),
+  county: countySchema.optional(),
+  postalCode: z.string().trim().max(10).optional(),
+  preferredPayment: z
+    .enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
+    .optional(),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: emailSchema,
 });
 
-export const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'Reset token is required'),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1, 'Reset token is required'),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 export const verifyEmailSchema = z.object({
-  token: z.string().min(1, 'Verification token is required'),
+  token: z.string().trim().min(1, 'Verification token is required'),
 });
 
 export const verifyPhoneSchema = z.object({
-  code: z.string().length(6, 'Verification code must be 6 digits'),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Verification code must be exactly 6 digits'),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
