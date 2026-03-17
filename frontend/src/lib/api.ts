@@ -405,7 +405,7 @@ class ApiClient {
   }
 
   async getHealthDetailed() {
-    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/health/detailed');
+    const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/health');
     return data;
   }
 }
