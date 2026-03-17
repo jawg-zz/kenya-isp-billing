@@ -20,6 +20,10 @@ import {
   X,
   Sun,
   Moon,
+  PieChart,
+  FileBarChart,
+  TrendingUp,
+  HardDrive,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -47,6 +51,7 @@ const adminNav: NavItem[] = [
   { name: 'Plans', href: '/plans', icon: Package },
   { name: 'Invoices', href: '/invoices/management', icon: FileText },
   { name: 'Revenue', href: '/revenue', icon: Receipt },
+  { name: 'Reports', href: '/reports', icon: FileBarChart },
   { name: 'Network', href: '/network', icon: Network },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

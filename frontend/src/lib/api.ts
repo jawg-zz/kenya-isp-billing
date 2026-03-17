@@ -484,6 +484,83 @@ class ApiClient {
     // Health endpoint returns direct data, not ApiResponse wrapper
     return { success: true, data };
   }
+
+  // ===== REPORTS =====
+
+  // Customer Reports
+  async getCustomerRegistrationTrends(params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ period: string; count: number }>>>('/reports/customers/registration-trends', { params });
+    return data;
+  }
+
+  async getCustomerChurnAnalysis(params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ period: string; churned: number; suspended: number; churnRate: number }>>>('/reports/customers/churn-analysis', { params });
+    return data;
+  }
+
+  async getCustomerGeographicDistribution() {
+    const { data } = await this.client.get<ApiResponse<Array<{ county: string; count: number }>>>('/reports/customers/geographic');
+    return data;
+  }
+
+  async getCustomerStatusBreakdown() {
+    const { data } = await this.client.get<ApiResponse<{ total: number; statuses: Array<{ status: string; count: number; percentage: number }> }>>('/reports/customers/status');
+    return data;
+  }
+
+  // Usage Reports
+  async getUsageBandwidth(params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ period: string; totalBytes: number; totalGB: number; recordCount: number }>>>('/reports/usage/bandwidth', { params });
+    return data;
+  }
+
+  async getUsageTopUsers(params?: { topN?: number; startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ rank: number; userId: string; name: string; email: string; phone: string; accountNumber: string; planName: string; totalGB: number; recordCount: number }>>>('/reports/usage/top-users', { params });
+    return data;
+  }
+
+  async getUsagePeakHours(params?: { startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ hour: number; hourLabel: string; totalBytes: number; totalGB: number; sessionCount: number }>>>('/reports/usage/peak-hours', { params });
+    return data;
+  }
+
+  async getUsageByPlan(params?: { startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ planId: string; planName: string; totalGB: number; customerCount: number }>>>('/reports/usage/by-plan', { params });
+    return data;
+  }
+
+  // Payment Reports
+  async getPaymentCollectionRate(params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ period: string; total: number; paid: number; outstanding: number; collectionRate: number }>>>('/reports/payments/collection-rate', { params });
+    return data;
+  }
+
+  async getPaymentAvgDaysToPayment(params?: { startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<{ averageDays: number }>>('/reports/payments/avg-days-to-payment', { params });
+    return data;
+  }
+
+  async getPaymentMethodBreakdown(params?: { startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ method: string; methodLabel: string; count: number; totalAmount: number; completedCount: number; completedAmount: number }>>>('/reports/payments/method-breakdown', { params });
+    return data;
+  }
+
+  async getPaymentFailedRate(params?: { startDate?: string; endDate?: string }) {
+    const { data } = await this.client.get<ApiResponse<{ totalPayments: number; failedPayments: number; failureRate: number; topFailureReasons: Array<{ reason: string; count: number }> }>>('/reports/payments/failed-rate', { params });
+    return data;
+  }
+
+  async getRevenueVsOutstanding(params?: { startDate?: string; endDate?: string; groupBy?: string }) {
+    const { data } = await this.client.get<ApiResponse<Array<{ period: string; collected: number; outstanding: number }>>>('/reports/payments/revenue-vs-outstanding', { params });
+    return data;
+  }
+
+  // Export helpers
+  getExportUrl(type: 'customers' | 'usage' | 'payments', format: 'csv' | 'pdf', params?: Record<string, string>): string {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const queryParams = params ? '?' + new URLSearchParams(params).toString() : '';
+    return `${baseUrl}/api/v1/reports/${type}/export${format === 'pdf' ? '-pdf' : ''}${queryParams}`;
+  }
 }
 
 export const api = new ApiClient();
