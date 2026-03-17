@@ -262,6 +262,28 @@ async function main() {
     { key: 'tax_name', value: 'VAT', category: 'billing' },
     { key: 'grace_period_days', value: '3', category: 'billing' },
     { key: 'fup_enabled', value: 'true', category: 'billing' },
+    // Branding
+    { key: 'company_logo_url', value: '', category: 'branding' },
+    { key: 'company_tagline', value: 'Your Trusted ISP Partner', category: 'branding' },
+    { key: 'primary_color', value: '#3B82F6', category: 'branding' },
+    { key: 'secondary_color', value: '#10B981', category: 'branding' },
+    { key: 'currency', value: 'KES', category: 'branding' },
+    { key: 'currency_symbol', value: 'KSh', category: 'branding' },
+    { key: 'footer_text', value: '© 2026 Kenya ISP Limited. All rights reserved.', category: 'branding' },
+    // Operations
+    { key: 'auto_suspend_overdue', value: 'true', category: 'operations' },
+    { key: 'auto_suspend_grace_days', value: '7', category: 'operations' },
+    { key: 'late_fee_percentage', value: '2.0', category: 'operations' },
+    { key: 'invoice_number_prefix', value: 'INV', category: 'operations' },
+    { key: 'invoice_due_days', value: '30', category: 'operations' },
+    { key: 'low_balance_alert_threshold', value: '100', category: 'operations' },
+    // API/RADIUS
+    { key: 'radius_secret', value: 'testing123', category: 'api_radius' },
+    { key: 'radius_nas_ip', value: '', category: 'api_radius' },
+    { key: 'radius_nas_port', value: '1812', category: 'api_radius' },
+    { key: 'radius_acct_port', value: '1813', category: 'api_radius' },
+    { key: 'session_timeout_default', value: '3600', category: 'api_radius' },
+    { key: 'api_rate_limit_per_minute', value: '60', category: 'api_radius' },
   ];
 
   for (const setting of settings) {
