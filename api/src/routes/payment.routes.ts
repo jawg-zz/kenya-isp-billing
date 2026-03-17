@@ -77,7 +77,7 @@ router.use(authenticate);
  *       404:
  *         description: Customer not found
  */
-router.post('/mpesa/initiate', paymentRateLimiter, validate(mpesaSTKPushSchema), paymentController.initiateMpesaPayment);
+router.post('/mpesa/initiate', validate(mpesaSTKPushSchema), paymentController.initiateMpesaPayment);
 
 /**
  * @swagger
@@ -135,7 +135,7 @@ router.get('/mpesa/status/:paymentId', paymentController.checkMpesaStatus);
  *       404:
  *         description: Customer not found
  */
-router.post('/airtel/initiate', paymentRateLimiter, validate(airtelPaymentSchema), paymentController.initiateAirtelPayment);
+router.post('/airtel/initiate', validate(airtelPaymentSchema), paymentController.initiateAirtelPayment);
 
 /**
  * @swagger
