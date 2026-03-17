@@ -40,7 +40,7 @@ class SettingsController {
    */
   async getSetting(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { key } = req.params;
+      const { key } = req.params as { key: string };
 
       const setting = await prisma.systemSetting.findUnique({
         where: { key },
@@ -66,7 +66,7 @@ class SettingsController {
    */
   async getSettingsByCategory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { category } = req.params;
+      const { category } = req.params as { category: string };
 
       const settings = await prisma.systemSetting.findMany({
         where: { category },
@@ -93,7 +93,7 @@ class SettingsController {
    */
   async updateSetting(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { key } = req.params;
+      const { key } = req.params as { key: string };
       const { value } = req.body;
 
       if (value === undefined || value === null) {
@@ -145,7 +145,7 @@ class SettingsController {
       }
 
       // Check that all keys exist
-      const keys = settings.map((s: { key: string }) => s.key);
+      const keys = settings.map((s: any) => String(s.key));
       const existing = await prisma.systemSetting.findMany({
         where: { key: { in: keys } },
         select: { key: true },
@@ -159,9 +159,9 @@ class SettingsController {
 
       // Perform updates in a transaction
       const updated = await prisma.$transaction(
-        settings.map((item: { key: string; value: unknown }) =>
+        settings.map((item: any) =>
           prisma.systemSetting.update({
-            where: { key: item.key },
+            where: { key: String(item.key) },
             data: { value: String(item.value) },
           })
         )
