@@ -134,7 +134,7 @@ class PaymentController {
   // Check M-Pesa payment status
   async checkMpesaStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { paymentId } = req.params;
+      const paymentId = req.params.paymentId as string;
 
       const payment = await prisma.payment.findFirst({
         where: {
@@ -315,7 +315,7 @@ class PaymentController {
   // Get single payment
   async getPayment(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const payment = await prisma.payment.findFirst({
         where: {

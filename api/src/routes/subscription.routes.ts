@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, IRouter } from 'express';
 import { subscriptionController } from '../controllers/subscription.controller';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -7,7 +7,7 @@ import {
   cancelSubscriptionSchema,
 } from '../validators/subscription.validator';
 
-const router = Router();
+const router: IRouter = Router();
 
 router.use(authenticate);
 

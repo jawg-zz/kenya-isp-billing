@@ -38,7 +38,7 @@ class PlanController {
   // Get single plan
   async getPlan(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const plan = await prisma.plan.findUnique({
         where: { id },
@@ -132,7 +132,7 @@ class PlanController {
   // Update plan (admin)
   async updatePlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updateData = req.body;
 
       // Convert MB to bytes if data fields are provided
@@ -166,7 +166,7 @@ class PlanController {
   // Delete plan (admin)
   async deletePlan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Check if plan has active subscriptions
       const activeSubscriptions = await prisma.subscription.count({

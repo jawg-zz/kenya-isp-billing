@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, IRouter } from 'express';
 import { paymentController } from '../controllers/payment.controller';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -14,7 +14,7 @@ import {
   cashPaymentSchema,
 } from '../validators/payment.validator';
 
-const router = Router();
+const router: IRouter = Router();
 
 // M-Pesa webhook callbacks - IP allowlist + signature verification + idempotency
 router.post(

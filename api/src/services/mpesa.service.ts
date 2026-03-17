@@ -51,7 +51,7 @@ class MpesaService {
         throw new Error(`Failed to get M-Pesa access token: ${response.statusText}`);
       }
 
-      const data: MpesaTokenResponse = await response.json();
+      const data = await response.json() as MpesaTokenResponse;
       this.accessToken = data.access_token;
       this.tokenExpiry = new Date(Date.now() + (parseInt(data.expires_in) * 1000) - 60000); // 1 min buffer
 
@@ -134,7 +134,7 @@ class MpesaService {
         body: JSON.stringify(payload),
       });
 
-      const data: STKPushResponse = await response.json();
+      const data = await response.json() as STKPushResponse;
 
       if (data.ResponseCode !== '0') {
         logger.error('M-Pesa STK Push failed:', data);

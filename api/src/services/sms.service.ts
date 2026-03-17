@@ -73,7 +73,7 @@ class SMSService {
         body: payload.toString(),
       });
 
-      const data: AfricaTalkingResponse = await response.json();
+        const data = await response.json() as AfricaTalkingResponse;
 
       logger.info('SMS sent:', {
         recipients: recipients,
@@ -223,7 +223,7 @@ class SMSService {
           body: payload.toString(),
         });
 
-        const data: AfricaTalkingResponse = await response.json();
+      const data = await response.json() as AfricaTalkingResponse;
         const sent = data.SMSMessageData.Recipients.filter(
           (r) => r.statusCode === 101
         ).length;

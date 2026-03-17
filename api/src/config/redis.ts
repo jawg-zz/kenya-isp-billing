@@ -90,7 +90,13 @@ export const cache = {
   },
 
   async getSession<T>(sessionId: string): Promise<T | null> {
-    return this.get<T>(`session:${sessionId}`);
+    const data = await RedisClient.getInstance().get(`session:${sessionId}`);
+    if (!data) return null;
+    try {
+      return JSON.parse(data) as T;
+    } catch {
+      return null;
+    }
   },
 
   async deleteSession(sessionId: string): Promise<void> {

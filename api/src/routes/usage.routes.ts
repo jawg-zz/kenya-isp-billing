@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, IRouter } from 'express';
 import { usageController } from '../controllers/usage.controller';
 import { authenticate, authorize } from '../middleware/auth';
 
-const router = Router();
+const router: IRouter = Router();
 
 router.use(authenticate);
 

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -23,7 +23,7 @@ import radiusRoutes from './routes/radius.routes';
 import healthRoutes from './routes/health.routes';
 import auditRoutes from './routes/audit.routes';
 
-const app = express();
+const app: Express = express();
 
 // Trust proxy for rate limiting
 app.set('trust proxy', 1);

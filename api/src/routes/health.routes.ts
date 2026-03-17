@@ -1,9 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, IRouter } from 'express';
 import { prisma } from '../config/database';
 import RedisClient from '../config/redis';
 import config from '../config';
 
-const router = Router();
+const router: IRouter = Router();
 
 // Basic health check
 router.get('/', async (_req: Request, res: Response) => {

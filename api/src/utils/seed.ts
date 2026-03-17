@@ -205,6 +205,9 @@ async function main() {
       update: {},
       create: {
         ...planData,
+        type: planData.type as 'PREPAID' | 'POSTPAID',
+        dataType: planData.dataType as 'DATA' | 'VOICE' | 'SMS' | 'BUNDLE',
+        billingCycle: planData.billingCycle as 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | undefined,
         isActive: true,
         metadata: {
           features: getPlanFeatures(planData.code),

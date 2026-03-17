@@ -77,7 +77,7 @@ class AirtelService {
         throw new Error(`Failed to get Airtel access token: ${response.statusText}`);
       }
 
-      const data: AirtelTokenResponse = await response.json();
+      const data = await response.json() as AirtelTokenResponse;
       this.accessToken = data.access_token;
       this.tokenExpiry = new Date(Date.now() + (data.expires_in * 1000) - 60000);
 
@@ -157,7 +157,7 @@ class AirtelService {
         }
       );
 
-      const data: AirtelPaymentResponse = await response.json();
+      const data = await response.json() as AirtelPaymentResponse;
 
       if (data.data.transaction.status !== 'PENDING') {
         logger.error('Airtel payment initiation failed:', data);
@@ -197,7 +197,7 @@ class AirtelService {
         }
       );
 
-      const data: AirtelTransactionStatus = await response.json();
+      const data = await response.json() as AirtelTransactionStatus;
       logger.info('Airtel transaction status check:', data);
       return data;
     } catch (error) {

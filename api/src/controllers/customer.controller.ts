@@ -89,7 +89,7 @@ class CustomerController {
   // Get single customer (admin)
   async getCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const customer = await prisma.customer.findUnique({
         where: { id },
@@ -204,10 +204,10 @@ class CustomerController {
 
       // Send welcome SMS
       if (phone) {
-        await smsService.send(
-          phone,
-          `Welcome to ISP Billing! Your customer code is ${customerCode}. Your account is now active.`
-        );
+        await smsService.send({
+          to: phone,
+          message: `Welcome to ISP Billing! Your customer code is ${customerCode}. Your account is now active.`
+        });
       }
 
       logger.info(`Customer created: ${result.customer.customerCode}`);
@@ -232,7 +232,7 @@ class CustomerController {
   // Update customer (admin)
   async updateCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updateData = req.body;
 
       const customer = await prisma.customer.findUnique({
@@ -286,7 +286,7 @@ class CustomerController {
   // Adjust customer balance (admin)
   async adjustBalance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { amount, reason, type } = req.body;
 
       const customer = await prisma.customer.findUnique({
@@ -390,7 +390,7 @@ class CustomerController {
   // Delete customer (admin)
   async deleteCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const customer = await prisma.customer.findUnique({
         where: { id },

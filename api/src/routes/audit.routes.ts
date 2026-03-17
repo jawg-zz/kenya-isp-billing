@@ -1,9 +1,9 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router, Response, NextFunction, IRouter } from 'express';
 import { prisma } from '../config/database';
 import { authenticate } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
-const router = Router();
+const router: IRouter = Router();
 
 // All routes require authentication
 router.use(authenticate);
@@ -44,17 +44,6 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
-        include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -120,14 +109,6 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response, next: Next
     // Get recent activity
     const recentLogs = await prisma.auditLog.findMany({
       where,
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
       orderBy: { createdAt: 'desc' },
       take: 10,
     });

@@ -50,7 +50,7 @@ class SubscriptionController {
   // Get single subscription
   async getSubscription(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       const subscription = await prisma.subscription.findFirst({
         where: {

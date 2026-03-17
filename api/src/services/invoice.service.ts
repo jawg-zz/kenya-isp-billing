@@ -145,9 +145,10 @@ class InvoiceService {
       // Watermark for unpaid invoices
       if (invoice.status !== 'PAID') {
         doc.save();
+        doc.opacity(0.3);
         doc.fontSize(60).fillColor('#f0f0f0')
           .rotate(-45, { origin: [300, 400] })
-          .text('DRAFT', 200, 350, { align: 'center', opacity: 0.3 });
+          .text('DRAFT', 200, 350, { align: 'center' });
         doc.restore();
       }
 

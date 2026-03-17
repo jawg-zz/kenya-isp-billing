@@ -8,6 +8,7 @@ interface AuditLogEntry {
   action: string;
   entityType: string;
   entityId?: string;
+  resourceId?: string;
   oldValues?: Record<string, unknown>;
   newValues?: Record<string, unknown>;
   ipAddress?: string;
@@ -32,7 +33,7 @@ export function auditLog(entry: Partial<AuditLogEntry>) {
           userId: req.user.id,
           action: entry.action || req.method,
           entityType: entry.entityType || req.path,
-          entityId: entry.resourceId || req.params?.id,
+          entityId: entry.resourceId || (req.params?.id as string),
           newValues: {
             ...entry.newValues,
             statusCode,

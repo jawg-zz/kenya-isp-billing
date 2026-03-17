@@ -1,9 +1,9 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, IRouter } from 'express';
 import { customerController } from '../controllers/customer.controller';
 import { authenticate, authorize } from '../middleware/auth';
 import { billingService } from '../services/billing.service';
 
-const router = Router();
+const router: IRouter = Router();
 
 router.use(authenticate);
 router.use(authorize('ADMIN', 'SUPPORT'));
@@ -20,7 +20,7 @@ router.post('/:id/balance', customerController.adjustBalance);
 // Billing routes
 router.get('/:id/billing-summary', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await billingService.getCustomerBillingSummary(req.params.id);
+    const result = await billingService.getCustomerBillingSummary(req.params.id as string);
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);

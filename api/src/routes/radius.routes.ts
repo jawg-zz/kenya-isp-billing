@@ -1,11 +1,11 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, IRouter } from 'express';
 import { radiusService } from '../services/radius.service';
 import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth';
 import config from '../config';
 import { logger } from '../config/logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // Admin routes - get RADIUS sessions
 router.get('/sessions', authenticate, authorize('ADMIN', 'SUPPORT'), async (req: Request, res: Response) => {

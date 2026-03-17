@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, IRouter } from 'express';
 import { authController } from '../controllers/auth.controller';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -13,7 +13,7 @@ import {
   resetPasswordSchema,
 } from '../validators/auth.validator';
 
-const router = Router();
+const router: IRouter = Router();
 
 // Public routes
 router.post('/register', authRateLimiter, validate(registerSchema), authController.register);
