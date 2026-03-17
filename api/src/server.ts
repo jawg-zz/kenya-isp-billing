@@ -194,6 +194,9 @@ const startServer = async () => {
 const gracefulShutdown = async (signal: string) => {
   logger.info(`${signal} received. Shutting down gracefully...`);
 
+  // Stop the scheduler first
+  stopScheduler();
+
   try {
     await prisma.$disconnect();
     await RedisClient.disconnect();
@@ -214,6 +217,15 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+startServer();
+
+export default app;
+// cache bust 1773732555
+n('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
   process.exit(1);
 });

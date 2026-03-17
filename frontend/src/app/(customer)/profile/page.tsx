@@ -11,7 +11,8 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { User, Shield, MapPin, Phone, Mail, Building2, Key, CreditCard } from 'lucide-react';
+import { User, Shield, MapPin, Phone, Mail, Building2, Key, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
+import { PhoneVerification } from '@/components/PhoneVerification';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -211,17 +212,39 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
                     <p className="font-medium text-gray-900 dark:text-white">{user.email}</p>
                   </div>
+                  {user.emailVerified ? (
+                    <Badge variant="success" size="sm">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="warning" size="sm">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Not Verified
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-xs text-gray-500 dark:text-gray-400">Phone</p>
                     <p className="font-medium text-gray-900 dark:text-white">{user.phone || 'Not set'}</p>
                   </div>
+                  {user.phoneVerified ? (
+                    <Badge variant="success" size="sm">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="warning" size="sm">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Not Verified
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500" />
@@ -292,6 +315,17 @@ export default function ProfilePage() {
                 </div>
               )}
             </Card>
+
+            {/* Phone Verification */}
+            {!user.phoneVerified && user.phone && (
+              <Card>
+                <CardHeader
+                  title="Verify Phone Number"
+                  description="Verify your phone number to secure your account"
+                />
+                <PhoneVerification onVerified={refreshUser} />
+              </Card>
+            )}
 
             {/* Account Info */}
             {user.customer && (

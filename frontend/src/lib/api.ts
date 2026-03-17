@@ -150,6 +150,22 @@ class ApiClient {
     }
   }
 
+  // Verification
+  async verifyEmail(token: string) {
+    const { data } = await this.client.post<ApiResponse>('/auth/verify-email', { token });
+    return data;
+  }
+
+  async verifyPhone(code: string) {
+    const { data } = await this.client.post<ApiResponse>('/auth/verify-phone', { code });
+    return data;
+  }
+
+  async sendPhoneVerification() {
+    const { data } = await this.client.post<ApiResponse>('/auth/send-phone-verification');
+    return data;
+  }
+
   // Auth
   async login(email: string, password: string) {
     const { data } = await this.client.post<ApiResponse<{ user: Record<string, unknown>; tokens: Tokens }>>('/auth/login', { email, password });

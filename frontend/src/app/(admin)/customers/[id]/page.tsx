@@ -1,14 +1,17 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { MainLayout } from '@/components/layout/Sidebar';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/Badge';
 import { format } from 'date-fns';
 import { ArrowLeft, User, Mail, Phone, MapPin, CreditCard, FileText, Shield } from 'lucide-react';
@@ -56,7 +59,20 @@ export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const customerId = params.id as string;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    county: '',
+    postalCode: '',
+    accountStatus: 'ACTIVE',
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['customer-detail', customerId],
@@ -66,6 +82,42 @@ export default function CustomerDetailPage() {
     },
     enabled: !!customerId,
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      return api.updateCustomer(customerId, payload);
+    },
+    onSuccess: () => {
+      toast.success('Customer updated successfully');
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ['customer-detail', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to update customer');
+    },
+  });
+
+  const startEditing = () => {
+    if (u) {
+      setEditForm({
+        firstName: u.firstName || '',
+        lastName: u.lastName || '',
+        phone: u.phone || '',
+        addressLine1: u.addressLine1 || '',
+        addressLine2: u.addressLine2 || '',
+        city: u.city || '',
+        county: u.county || '',
+        postalCode: u.postalCode || '',
+        accountStatus: u.accountStatus || 'ACTIVE',
+      });
+    }
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    updateMutation.mutate(editForm);
+  };
 
   if (!user) return null;
 
@@ -104,7 +156,9 @@ export default function CustomerDetailPage() {
           <Link href="/customers" className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to Customers
           </Link>
-          <Button variant="secondary" size="sm">Edit Customer</Button>
+          <Button variant="secondary" size="sm" onClick={isEditing ? () => setIsEditing(false) : startEditing}>
+            {isEditing ? 'Cancel' : 'Edit Customer'}
+          </Button>
         </div>
 
         {/* Customer Header */}
@@ -133,34 +187,54 @@ export default function CustomerDetailPage() {
           {/* Contact Information */}
           <Card>
             <CardHeader title="Contact Information" />
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{u?.email || 'No email'}</p>
+            {isEditing ? (
+              <div className="space-y-4">
+                <Input label="First Name" value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />
+                <Input label="Last Name" value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
+                <Input label="Phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Email</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{u?.email || 'No email'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Phone</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{u?.phone || 'No phone'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Address</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {[u?.addressLine1, u?.addressLine2, u?.city, u?.county, u?.postalCode].filter(Boolean).join(', ') || 'No address'}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Phone</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{u?.phone || 'No phone'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Address</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {[u?.addressLine1, u?.addressLine2, u?.city, u?.county, u?.postalCode].filter(Boolean).join(', ') || 'No address'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </Card>
 
-          {/* Account Balance */}
+          {/* Account Balance / Edit Address */}
+          {isEditing ? (
+            <Card>
+              <CardHeader title="Address" />
+              <div className="space-y-4">
+                <Input label="Address Line 1" value={editForm.addressLine1} onChange={(e) => setEditForm({ ...editForm, addressLine1: e.target.value })} />
+                <Input label="Address Line 2" value={editForm.addressLine2} onChange={(e) => setEditForm({ ...editForm, addressLine2: e.target.value })} />
+                <Input label="City" value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} />
+                <Input label="County" value={editForm.county} onChange={(e) => setEditForm({ ...editForm, county: e.target.value })} />
+                <Input label="Postal Code" value={editForm.postalCode} onChange={(e) => setEditForm({ ...editForm, postalCode: e.target.value })} />
+              </div>
+            </Card>
+          ) : (
           <Card hover>
             <CardHeader title="Account Balance" />
             <div className="space-y-4">
@@ -178,8 +252,37 @@ export default function CustomerDetailPage() {
               </div>
             </div>
           </Card>
+          )}
 
-          {/* Quick Actions */}
+          {/* Account Status & Save (edit mode) */}
+          {isEditing ? (
+            <Card>
+              <CardHeader title="Account Status" />
+              <div className="space-y-4">
+                <div className="w-full">
+                  <label htmlFor="accountStatus" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Status</label>
+                  <select
+                    id="accountStatus"
+                    value={editForm.accountStatus}
+                    onChange={(e) => setEditForm({ ...editForm, accountStatus: e.target.value })}
+                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm dark:bg-gray-800 dark:text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="SUSPENDED">Suspended</option>
+                    <option value="TERMINATED">Terminated</option>
+                  </select>
+                </div>
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={handleSave}
+                  isLoading={updateMutation.isPending}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </Card>
+          ) : (
           <Card>
             <CardHeader title="Quick Actions" />
             <div className="space-y-3">
@@ -198,6 +301,7 @@ export default function CustomerDetailPage() {
               </Button>
             </div>
           </Card>
+          )}
         </div>
 
         {/* Active Subscriptions */}
