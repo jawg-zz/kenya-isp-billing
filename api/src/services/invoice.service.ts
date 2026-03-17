@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
@@ -28,12 +29,28 @@ class InvoiceService {
   }
 
   // Generate unique invoice number
-  generateInvoiceNumber(): string {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    return `INV${year}${month}${random}`;
+  async generateInvoiceNumber(): Promise<string> {
+    const maxRetries = 3;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const uuid = crypto.randomUUID().replace(/-/g, '').toUpperCase();
+      const invoiceNumber = `INV-${uuid.slice(0, 8)}-${uuid.slice(8, 12)}`;
+
+      const existing = await prisma.invoice.findUnique({
+        where: { invoiceNumber },
+      });
+
+      if (!existing) {
+        return invoiceNumber;
+      }
+
+      if (attempt === maxRetries) {
+        throw new Error('Failed to generate unique invoice number after max retries');
+      }
+    }
+
+    // TypeScript needs this, but we never reach here
+    throw new Error('Unexpected error in invoice number generation');
   }
 
   // Generate PDF invoice

@@ -73,8 +73,8 @@ class BillingService {
     dueDate.setDate(dueDate.getDate() + 30);
 
     // Create invoice
-    const invoiceNumber = invoiceService.generateInvoiceNumber();
-    
+    const invoiceNumber = await invoiceService.generateInvoiceNumber();
+
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber,
@@ -350,7 +350,7 @@ class BillingService {
     const totalAmount = subtotal + taxAmount;
 
     // Create invoice
-    const invoiceNumber = invoiceService.generateInvoiceNumber();
+    const invoiceNumber = await invoiceService.generateInvoiceNumber();
 
     const invoice = await prisma.invoice.create({
       data: {
