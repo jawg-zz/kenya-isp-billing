@@ -23,14 +23,14 @@ export default function ForgotPasswordPage() {
       const result = await api.forgotPassword(email);
 
       if (!result.success) {
-        throw new Error(result.message || 'Failed to send reset email');
+        throw new Error(result.message || 'Failed to send reset code');
       }
 
-      toast.success('Reset email sent!');
+      toast.success('Reset code sent to your phone!');
       setIsSubmitted(true);
     } catch (err: unknown) {
       const error = err as Error;
-      toast.error(error.message || 'Failed to send reset email');
+      toast.error(error.message || 'Failed to send reset code');
     } finally {
       setIsLoading(false);
     }
@@ -44,15 +44,15 @@ export default function ForgotPasswordPage() {
             <Wifi className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
-          <p className="mt-2 text-gray-600">Enter your email to receive a reset link</p>
+          <p className="mt-2 text-gray-600">Enter your email to receive a reset code via SMS</p>
         </div>
 
         <Card>
-          <CardHeader title="Forgot Password" description="We'll send you a link to reset your password" />
+          <CardHeader title="Forgot Password" description="We'll send a reset code to your phone via SMS" />
           {isSubmitted ? (
             <div className="text-center py-4">
               <p className="text-gray-600 mb-4">
-                If an account with that email exists, we've sent a password reset link. Please check your inbox.
+                If an account with that email exists, we've sent a reset code to your phone via SMS.
               </p>
               <Link href="/login" className="text-primary-600 hover:text-primary-500 font-medium">
                 Back to login
@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
               />
 
               <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
-                Send Reset Link
+                Send Reset Code
               </Button>
 
               <div className="text-center">
