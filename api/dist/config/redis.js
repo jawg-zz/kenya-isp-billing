@@ -86,7 +86,15 @@ exports.cache = {
         await this.set(`session:${sessionId}`, data, ttlSeconds);
     },
     async getSession(sessionId) {
-        return this.get(`session:${sessionId}`);
+        const data = await RedisClient.getInstance().get(`session:${sessionId}`);
+        if (!data)
+            return null;
+        try {
+            return JSON.parse(data);
+        }
+        catch {
+            return null;
+        }
     },
     async deleteSession(sessionId) {
         await this.del(`session:${sessionId}`);

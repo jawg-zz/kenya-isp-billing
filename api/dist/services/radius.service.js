@@ -130,7 +130,7 @@ class RadiusService {
                 username: radiusConfig.username,
                 password: radiusConfig.password,
                 isActive: radiusConfig.isActive,
-                dataRemaining: subscription?.dataRemaining ?? null,
+                dataRemaining: subscription?.dataRemaining != null ? Number(subscription.dataRemaining) : null,
                 speedLimit: subscription?.plan.speedLimit ?? null,
                 fupSpeedLimit: subscription?.plan.fupSpeedLimit ?? null,
                 subscriptionActive: !!subscription && subscription.status === 'ACTIVE',
@@ -282,7 +282,8 @@ class RadiusService {
         }
         // Calculate remaining data
         const dataUsed = totalOctets;
-        const dataRemaining = Math.max(0, BigInt(subscription.plan.dataAllowance) - BigInt(dataUsed));
+        const remaining = BigInt(subscription.plan.dataAllowance) - BigInt(dataUsed);
+        const dataRemaining = remaining > 0n ? remaining : 0n;
         await database_1.prisma.subscription.update({
             where: { id: subscriptionId },
             data: {
@@ -345,7 +346,7 @@ class RadiusService {
         // to the NAS device
         const activeSessions = await database_1.prisma.radiusSession.findMany({
             where: {
-                user: { radiusConfig: { username } },
+                user: { customer: { radiusConfig: { username } } },
                 status: 'ACTIVE',
             },
         });

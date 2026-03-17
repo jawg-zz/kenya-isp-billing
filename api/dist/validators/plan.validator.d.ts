@@ -29,11 +29,10 @@ export declare const createPlanSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     description?: string;
     type?: "PREPAID" | "POSTPAID";
+    name?: string;
     code?: string;
     dataType?: "DATA" | "VOICE" | "SMS" | "BUNDLE";
     price?: number;
-    sortOrder?: number;
-    name?: string;
     dataAllowance?: number;
     voiceMinutes?: number;
     smsAllowance?: number;
@@ -43,6 +42,7 @@ export declare const createPlanSchema: z.ZodObject<{
     fupThreshold?: number;
     fupSpeedLimit?: number;
     isFeatured?: boolean;
+    sortOrder?: number;
     prices?: {
         price?: number;
         billingCycle?: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
@@ -50,11 +50,10 @@ export declare const createPlanSchema: z.ZodObject<{
 }, {
     description?: string;
     type?: "PREPAID" | "POSTPAID";
+    name?: string;
     code?: string;
     dataType?: "DATA" | "VOICE" | "SMS" | "BUNDLE";
     price?: number;
-    sortOrder?: number;
-    name?: string;
     dataAllowance?: number;
     voiceMinutes?: number;
     smsAllowance?: number;
@@ -64,6 +63,7 @@ export declare const createPlanSchema: z.ZodObject<{
     fupThreshold?: number;
     fupSpeedLimit?: number;
     isFeatured?: boolean;
+    sortOrder?: number;
     prices?: {
         price?: number;
         billingCycle?: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
@@ -85,9 +85,8 @@ export declare const updatePlanSchema: z.ZodObject<{
     sortOrder: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     description?: string;
-    price?: number;
-    sortOrder?: number;
     name?: string;
+    price?: number;
     dataAllowance?: number;
     voiceMinutes?: number;
     smsAllowance?: number;
@@ -95,13 +94,13 @@ export declare const updatePlanSchema: z.ZodObject<{
     validityDays?: number;
     fupThreshold?: number;
     fupSpeedLimit?: number;
-    isFeatured?: boolean;
     isActive?: boolean;
+    isFeatured?: boolean;
+    sortOrder?: number;
 }, {
     description?: string;
-    price?: number;
-    sortOrder?: number;
     name?: string;
+    price?: number;
     dataAllowance?: number;
     voiceMinutes?: number;
     smsAllowance?: number;
@@ -109,8 +108,9 @@ export declare const updatePlanSchema: z.ZodObject<{
     validityDays?: number;
     fupThreshold?: number;
     fupSpeedLimit?: number;
-    isFeatured?: boolean;
     isActive?: boolean;
+    isFeatured?: boolean;
+    sortOrder?: number;
 }>;
 export declare const planFilterSchema: z.ZodObject<{
     type: z.ZodOptional<z.ZodEnum<["PREPAID", "POSTPAID"]>>;
@@ -126,8 +126,8 @@ export declare const planFilterSchema: z.ZodObject<{
     limit?: number;
     page?: number;
     dataType?: "DATA" | "VOICE" | "SMS" | "BUNDLE";
-    isFeatured?: boolean;
     isActive?: boolean;
+    isFeatured?: boolean;
     minPrice?: number;
     maxPrice?: number;
 }, {
@@ -135,8 +135,8 @@ export declare const planFilterSchema: z.ZodObject<{
     limit?: number;
     page?: number;
     dataType?: "DATA" | "VOICE" | "SMS" | "BUNDLE";
-    isFeatured?: boolean;
     isActive?: boolean;
+    isFeatured?: boolean;
     minPrice?: number;
     maxPrice?: number;
 }>;

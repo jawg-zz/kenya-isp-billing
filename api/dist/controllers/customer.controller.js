@@ -86,7 +86,7 @@ class CustomerController {
     // Get single customer (admin)
     async getCustomer(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const customer = await database_1.prisma.customer.findUnique({
                 where: { id },
                 include: {
@@ -174,7 +174,10 @@ class CustomerController {
             await radius_service_1.radiusService.createRadiusUser(result.customer.id);
             // Send welcome SMS
             if (phone) {
-                await sms_service_1.smsService.send(phone, `Welcome to ISP Billing! Your customer code is ${customerCode}. Your account is now active.`);
+                await sms_service_1.smsService.send({
+                    to: phone,
+                    message: `Welcome to ISP Billing! Your customer code is ${customerCode}. Your account is now active.`
+                });
             }
             logger_1.logger.info(`Customer created: ${result.customer.customerCode}`);
             const response = {
@@ -196,7 +199,7 @@ class CustomerController {
     // Update customer (admin)
     async updateCustomer(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const updateData = req.body;
             const customer = await database_1.prisma.customer.findUnique({
                 where: { id },
@@ -244,7 +247,7 @@ class CustomerController {
     // Adjust customer balance (admin)
     async adjustBalance(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { amount, reason, type } = req.body;
             const customer = await database_1.prisma.customer.findUnique({
                 where: { id },
@@ -338,7 +341,7 @@ class CustomerController {
     // Delete customer (admin)
     async deleteCustomer(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const customer = await database_1.prisma.customer.findUnique({
                 where: { id },
                 include: {

@@ -5,13 +5,13 @@ export declare const mpesaSTKPushSchema: z.ZodObject<{
     accountReference: z.ZodString;
     transactionDesc: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    phoneNumber?: string;
     amount?: number;
+    phoneNumber?: string;
     accountReference?: string;
     transactionDesc?: string;
 }, {
-    phoneNumber?: string;
     amount?: number;
+    phoneNumber?: string;
     accountReference?: string;
     transactionDesc?: string;
 }>;
@@ -22,35 +22,35 @@ export declare const airtelPaymentSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     description?: string;
-    phoneNumber?: string;
     amount?: number;
     reference?: string;
+    phoneNumber?: string;
 }, {
     description?: string;
-    phoneNumber?: string;
     amount?: number;
     reference?: string;
+    phoneNumber?: string;
 }>;
 export declare const verifyPaymentSchema: z.ZodEffects<z.ZodObject<{
     checkoutRequestId: z.ZodOptional<z.ZodString>;
     merchantRequestId: z.ZodOptional<z.ZodString>;
     reference: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    reference?: string;
     checkoutRequestId?: string;
     merchantRequestId?: string;
-    reference?: string;
 }, {
+    reference?: string;
     checkoutRequestId?: string;
     merchantRequestId?: string;
-    reference?: string;
 }>, {
+    reference?: string;
     checkoutRequestId?: string;
     merchantRequestId?: string;
-    reference?: string;
 }, {
+    reference?: string;
     checkoutRequestId?: string;
     merchantRequestId?: string;
-    reference?: string;
 }>;
 export declare const paymentFilterSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodEnum<["PENDING", "COMPLETED", "FAILED", "CANCELLED", "REFUNDED", "TIMEOUT"]>>;
@@ -65,9 +65,9 @@ export declare const paymentFilterSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     limit?: number;
     page?: number;
-    status?: "COMPLETED" | "FAILED" | "PENDING" | "TIMEOUT" | "CANCELLED" | "REFUNDED";
-    method?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
+    status?: "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED" | "REFUNDED" | "TIMEOUT";
     customerId?: string;
+    method?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
     startDate?: string;
     endDate?: string;
     minAmount?: number;
@@ -75,9 +75,9 @@ export declare const paymentFilterSchema: z.ZodObject<{
 }, {
     limit?: number;
     page?: number;
-    status?: "COMPLETED" | "FAILED" | "PENDING" | "TIMEOUT" | "CANCELLED" | "REFUNDED";
-    method?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
+    status?: "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED" | "REFUNDED" | "TIMEOUT";
     customerId?: string;
+    method?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
     startDate?: string;
     endDate?: string;
     minAmount?: number;
@@ -99,15 +99,15 @@ export declare const cashPaymentSchema: z.ZodObject<{
     reference: z.ZodString;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    notes?: string;
+    customerId?: string;
     amount?: number;
     reference?: string;
-    customerId?: string;
-    notes?: string;
 }, {
+    notes?: string;
+    customerId?: string;
     amount?: number;
     reference?: string;
-    customerId?: string;
-    notes?: string;
 }>;
 export declare const bankTransferSchema: z.ZodObject<{
     amount: z.ZodNumber;
@@ -116,17 +116,17 @@ export declare const bankTransferSchema: z.ZodObject<{
     reference: z.ZodString;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
+    accountNumber?: string;
+    notes?: string;
     amount?: number;
     reference?: string;
-    notes?: string;
     bankName?: string;
-    accountNumber?: string;
 }, {
+    accountNumber?: string;
+    notes?: string;
     amount?: number;
     reference?: string;
-    notes?: string;
     bankName?: string;
-    accountNumber?: string;
 }>;
 export type MpesaSTKPushInput = z.infer<typeof mpesaSTKPushSchema>;
 export type AirtelPaymentInput = z.infer<typeof airtelPaymentSchema>;

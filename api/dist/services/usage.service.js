@@ -178,7 +178,7 @@ class UsageService {
         const fupThreshold = Number(subscription.plan.fupThreshold);
         const dataUsed = Number(subscription.dataUsed);
         // Check if FUP threshold just crossed
-        const previousUsage = dataUsed - (subscription.plan.dataAllowance || 0);
+        const previousUsage = dataUsed - Number(subscription.plan.dataAllowance || 0);
         const wasAboveThreshold = previousUsage >= fupThreshold;
         const isAboveThreshold = dataUsed >= fupThreshold;
         if (isAboveThreshold && !wasAboveThreshold) {
@@ -301,6 +301,7 @@ class UsageService {
                 customerId,
                 status: 'ACTIVE',
             },
+            include: { plan: true },
         });
         if (!subscription) {
             return;

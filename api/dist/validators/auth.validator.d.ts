@@ -13,57 +13,57 @@ export declare const registerSchema: z.ZodEffects<z.ZodObject<{
     postalCode: z.ZodOptional<z.ZodString>;
     idNumber: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    phone?: string;
     email?: string;
     password?: string;
-    confirmPassword?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
+    confirmPassword?: string;
 }, {
-    phone?: string;
     email?: string;
     password?: string;
-    confirmPassword?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
+    confirmPassword?: string;
 }>, {
-    phone?: string;
     email?: string;
     password?: string;
-    confirmPassword?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
+    confirmPassword?: string;
 }, {
-    phone?: string;
     email?: string;
     password?: string;
-    confirmPassword?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
+    confirmPassword?: string;
 }>;
 export declare const loginSchema: z.ZodObject<{
     email: z.ZodString;
@@ -114,25 +114,25 @@ export declare const updateProfileSchema: z.ZodObject<{
     postalCode: z.ZodOptional<z.ZodString>;
     preferredPayment: z.ZodOptional<z.ZodEnum<["MPESA", "AIREL_MONEY", "CASH", "BANK_TRANSFER", "CARD"]>>;
 }, "strip", z.ZodTypeAny, {
-    phone?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
+    preferredPayment?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
-    preferredPayment?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
 }, {
-    phone?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
+    preferredPayment?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
-    preferredPayment?: "MPESA" | "AIREL_MONEY" | "CASH" | "BANK_TRANSFER" | "CARD";
 }>;
 export declare const forgotPasswordSchema: z.ZodObject<{
     email: z.ZodString;

@@ -15,35 +15,35 @@ export declare const createCustomerSchema: z.ZodObject<{
     creditLimit: z.ZodDefault<z.ZodNumber>;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    phone?: string;
     email?: string;
     password?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
-    notes?: string;
     kraPin?: string;
     creditLimit?: number;
+    notes?: string;
 }, {
-    phone?: string;
     email?: string;
     password?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
-    notes?: string;
     kraPin?: string;
     creditLimit?: number;
+    notes?: string;
 }>;
 export declare const updateCustomerSchema: z.ZodObject<{
     firstName: z.ZodOptional<z.ZodString>;
@@ -60,33 +60,33 @@ export declare const updateCustomerSchema: z.ZodObject<{
     accountStatus: z.ZodOptional<z.ZodEnum<["ACTIVE", "SUSPENDED", "TERMINATED", "PENDING_VERIFICATION"]>>;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    phone?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
+    accountStatus?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
-    notes?: string;
     kraPin?: string;
     creditLimit?: number;
-    accountStatus?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
+    notes?: string;
 }, {
-    phone?: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
+    accountStatus?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     county?: string;
     postalCode?: string;
     idNumber?: string;
-    notes?: string;
     kraPin?: string;
     creditLimit?: number;
-    accountStatus?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
+    notes?: string;
 }>;
 export declare const customerFilterSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodEnum<["ACTIVE", "SUSPENDED", "TERMINATED", "PENDING_VERIFICATION"]>>;
@@ -101,23 +101,23 @@ export declare const customerFilterSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     search?: string;
     limit?: number;
-    page?: number;
-    county?: string;
-    status?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
-    sortOrder?: "asc" | "desc";
     networkProvider?: "SAFARICOM" | "AIRTEL" | "TELKOM" | "OTHER";
+    county?: string;
+    page?: number;
+    status?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
+    sortOrder?: "asc" | "desc";
     hasActiveSubscription?: boolean;
-    sortBy?: "firstName" | "lastName" | "accountNumber" | "createdAt";
+    sortBy?: "firstName" | "lastName" | "createdAt" | "accountNumber";
 }, {
     search?: string;
     limit?: number;
-    page?: number;
-    county?: string;
-    status?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
-    sortOrder?: "asc" | "desc";
     networkProvider?: "SAFARICOM" | "AIRTEL" | "TELKOM" | "OTHER";
+    county?: string;
+    page?: number;
+    status?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
+    sortOrder?: "asc" | "desc";
     hasActiveSubscription?: boolean;
-    sortBy?: "firstName" | "lastName" | "accountNumber" | "createdAt";
+    sortBy?: "firstName" | "lastName" | "createdAt" | "accountNumber";
 }>;
 export declare const adjustBalanceSchema: z.ZodObject<{
     amount: z.ZodEffects<z.ZodNumber, number, number>;

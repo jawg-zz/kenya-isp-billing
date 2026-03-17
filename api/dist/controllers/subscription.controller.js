@@ -48,7 +48,7 @@ class SubscriptionController {
     // Get single subscription
     async getSubscription(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const subscription = await database_1.prisma.subscription.findFirst({
                 where: {
                     id,

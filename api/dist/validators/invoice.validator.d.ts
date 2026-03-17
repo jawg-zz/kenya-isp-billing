@@ -18,25 +18,25 @@ export declare const createInvoiceSchema: z.ZodObject<{
     dueDate: z.ZodOptional<z.ZodString>;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    customerId?: string;
     notes?: string;
+    customerId?: string;
     subscriptionId?: string;
+    dueDate?: string;
     items?: {
         description?: string;
         quantity?: number;
         unitPrice?: number;
     }[];
-    dueDate?: string;
 }, {
-    customerId?: string;
     notes?: string;
+    customerId?: string;
     subscriptionId?: string;
+    dueDate?: string;
     items?: {
         description?: string;
         quantity?: number;
         unitPrice?: number;
     }[];
-    dueDate?: string;
 }>;
 export declare const invoiceFilterSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodEnum<["DRAFT", "PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]>>;
@@ -50,7 +50,7 @@ export declare const invoiceFilterSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     limit?: number;
     page?: number;
-    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
+    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
     customerId?: string;
     startDate?: string;
     endDate?: string;
@@ -59,7 +59,7 @@ export declare const invoiceFilterSchema: z.ZodObject<{
 }, {
     limit?: number;
     page?: number;
-    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
+    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
     customerId?: string;
     startDate?: string;
     endDate?: string;
@@ -70,11 +70,11 @@ export declare const updateInvoiceStatusSchema: z.ZodObject<{
     status: z.ZodEnum<["DRAFT", "PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]>;
     notes: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
     notes?: string;
+    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
 }, {
-    status?: "PAID" | "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "OVERDUE";
     notes?: string;
+    status?: "PENDING" | "CANCELLED" | "REFUNDED" | "DRAFT" | "PAID" | "OVERDUE";
 }>;
 export declare const sendInvoiceSchema: z.ZodObject<{
     invoiceId: z.ZodString;

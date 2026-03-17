@@ -56,7 +56,7 @@ class InvoiceController {
     // Get single invoice
     async getInvoice(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const invoice = await database_1.prisma.invoice.findFirst({
                 where: {
                     id,
@@ -88,7 +88,7 @@ class InvoiceController {
     // Download invoice PDF
     async downloadInvoice(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const invoice = await database_1.prisma.invoice.findFirst({
                 where: {
                     id,
@@ -179,7 +179,7 @@ class InvoiceController {
     // Update invoice status (admin)
     async updateInvoiceStatus(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const { status, notes } = req.body;
             const invoice = await database_1.prisma.invoice.findUnique({
                 where: { id },

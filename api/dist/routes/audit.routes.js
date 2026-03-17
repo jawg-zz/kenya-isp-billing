@@ -42,17 +42,6 @@ router.get('/', async (req, res, next) => {
         const [logs, total] = await Promise.all([
             database_1.prisma.auditLog.findMany({
                 where,
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            email: true,
-                            role: true,
-                        },
-                    },
-                },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
                 take: limit,
@@ -114,14 +103,6 @@ router.get('/stats', async (req, res, next) => {
         // Get recent activity
         const recentLogs = await database_1.prisma.auditLog.findMany({
             where,
-            include: {
-                user: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
             orderBy: { createdAt: 'desc' },
             take: 10,
         });

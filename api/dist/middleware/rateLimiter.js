@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRedisRateLimiter = exports.mobileApiLimiter = exports.paymentRateLimiter = exports.authRateLimiter = exports.rateLimiter = void 0;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const config_1 = __importDefault(require("../config"));
-const redis_1 = require("../config/redis");
+const redis_1 = __importDefault(require("../config/redis"));
 // Standard rate limiter
 exports.rateLimiter = (0, express_rate_limit_1.default)({
     windowMs: config_1.default.rateLimit.windowMs,
@@ -56,9 +56,9 @@ const createRedisRateLimiter = (windowSeconds, maxRequests) => {
     return async (req, res, next) => {
         const key = `ratelimit:${req.ip}:${req.path}`;
         try {
-            const count = await redis_1.RedisClient.getInstance().incr(key);
+            const count = await redis_1.default.getInstance().incr(key);
             if (count === 1) {
-                await redis_1.RedisClient.getInstance().expire(key, windowSeconds);
+                await redis_1.default.getInstance().expire(key, windowSeconds);
             }
             if (count > maxRequests) {
                 res.status(429).json({

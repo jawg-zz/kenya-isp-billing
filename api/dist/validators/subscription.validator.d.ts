@@ -24,12 +24,12 @@ export declare const cancelSubscriptionSchema: z.ZodObject<{
     reason: z.ZodOptional<z.ZodString>;
     immediate: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
-    reason?: string;
     subscriptionId?: string;
+    reason?: string;
     immediate?: boolean;
 }, {
-    reason?: string;
     subscriptionId?: string;
+    reason?: string;
     immediate?: boolean;
 }>;
 export declare const subscriptionFilterSchema: z.ZodObject<{
@@ -44,7 +44,7 @@ export declare const subscriptionFilterSchema: z.ZodObject<{
     type?: "PREPAID" | "POSTPAID";
     limit?: number;
     page?: number;
-    status?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
+    status?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
     customerId?: string;
     planId?: string;
     expiringSoon?: boolean;
@@ -52,7 +52,7 @@ export declare const subscriptionFilterSchema: z.ZodObject<{
     type?: "PREPAID" | "POSTPAID";
     limit?: number;
     page?: number;
-    status?: "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION" | "ACTIVE";
+    status?: "ACTIVE" | "SUSPENDED" | "TERMINATED" | "PENDING_VERIFICATION";
     customerId?: string;
     planId?: string;
     expiringSoon?: boolean;
@@ -72,12 +72,12 @@ export declare const transferSubscriptionSchema: z.ZodObject<{
     toCustomerId: z.ZodString;
     reason: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    reason?: string;
     subscriptionId?: string;
+    reason?: string;
     toCustomerId?: string;
 }, {
-    reason?: string;
     subscriptionId?: string;
+    reason?: string;
     toCustomerId?: string;
 }>;
 export type CreateSubscriptionInput = z.infer<typeof createSubscriptionSchema>;

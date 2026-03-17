@@ -203,6 +203,9 @@ async function main() {
             update: {},
             create: {
                 ...planData,
+                type: planData.type,
+                dataType: planData.dataType,
+                billingCycle: planData.billingCycle,
                 isActive: true,
                 metadata: {
                     features: getPlanFeatures(planData.code),

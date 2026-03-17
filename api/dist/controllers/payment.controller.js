@@ -120,7 +120,7 @@ class PaymentController {
     // Check M-Pesa payment status
     async checkMpesaStatus(req, res, next) {
         try {
-            const { paymentId } = req.params;
+            const paymentId = req.params.paymentId;
             const payment = await database_1.prisma.payment.findFirst({
                 where: {
                     id: paymentId,
@@ -283,7 +283,7 @@ class PaymentController {
     // Get single payment
     async getPayment(req, res, next) {
         try {
-            const { id } = req.params;
+            const id = req.params.id;
             const payment = await database_1.prisma.payment.findFirst({
                 where: {
                     id,
