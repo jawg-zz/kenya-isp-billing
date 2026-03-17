@@ -1,12 +1,12 @@
 # ISP Billing System — Progress Tracker
 
-> **Last Updated:** 2026-03-17  
+> **Last Updated:** 2026-03-17 19:34 UTC  
 > **Linked to:** [PRD.md](./PRD.md)  
 > **Legend:** ✅ Complete | 🚧 In Progress | 🔲 Not Started | 🐛 Has Known Issues
 
 ---
 
-## Overall Progress: **85%** (14/17 sections complete)
+## Overall Progress: **90%** (15/17 sections complete)
 
 | Section | Status | Notes |
 |---------|--------|-------|
@@ -21,7 +21,7 @@
 | 9. Notifications | ✅ | — |
 | 10. Admin Dashboard & Tools | ✅ | — |
 | 11. Customer Portal | ✅ | — |
-| 12. Reporting & Analytics | 🚧 | Charts exist, but no customer/usage/payment reports |
+| 12. Reporting & Analytics | ✅ | |
 | 13. Security & Compliance | ✅ | — |
 | 14. Infrastructure & Deployment | ✅ | Not yet deployed to production |
 | 15. API Design | ✅ | — |
@@ -134,14 +134,17 @@
 - [x] Phone verification component
 - [x] Reset password page
 
-### 12. Reporting & Analytics — 🚧
+### 12. Reporting & Analytics — ✅
 
 - [x] Revenue dashboard with charts (daily/monthly/quarterly)
 - [x] Recharts integration
-- [ ] Customer reports (registration trends, churn, geographic distribution)
-- [ ] Usage reports (total bandwidth, top users, peak times)
-- [ ] Payment reports (collection rate, days-to-payment, method breakdown)
-- [ ] Export reports (CSV/PDF)
+- [x] Customer reports (registration trends, churn analysis, geographic distribution, status breakdown)
+- [x] Usage reports (bandwidth trends, top users, peak hours, usage by plan)
+- [x] Payment reports (collection rate, days-to-payment, method breakdown, revenue vs outstanding)
+- [x] CSV export for all report types
+- [x] PDF export for all report types
+- [x] Date range filters and period toggles
+- [x] Reports section in admin sidebar
 
 ### 13. Security & Compliance — ✅
 
@@ -170,7 +173,7 @@
 - [x] Health check endpoint
 - [x] Cron workers (4 scheduled jobs)
 - [x] Seed data (default admin, plans, settings)
-- [ ] **Production deployment** (ready but not yet live)
+- [ ] **Production deployment** — ready, pending George's Dokploy deploy
 - [ ] **Production env vars configured** (JWT_SECRET, DB, etc.)
 - [ ] **Prisma migrations run in production**
 
