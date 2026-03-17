@@ -4,3 +4,4 @@ node_modules/
 frontend/.next/
 *.log
 .DS_Store
+dist/

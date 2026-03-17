@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
+import swaggerUi from 'swagger-ui-express';
 
 // Fix BigInt serialization for JSON responses
 (BigInt.prototype as any).toJSON = function() { return this.toString(); };
@@ -11,6 +12,7 @@ import config from './config';
 import { prisma } from './config/database';
 import RedisClient from './config/redis';
 import { logger } from './config/logger';
+import { swaggerSpec } from './config/swagger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { sanitize } from './middleware/validate';
 import { rateLimiter } from './middleware/rateLimiter';
@@ -135,6 +137,16 @@ app.get(`${config.apiPrefix}/health`, async (_req, res) => {
       radius: { status: config.radius?.secret ? 'configured' : 'not_configured' },
     },
   });
+});
+
+// Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'ISP Billing API Documentation',
+}));
+// Serve raw OpenAPI spec as JSON
+app.get('/api/docs.json', (_req, res) => {
+  res.json(swaggerSpec);
 });
 
 // API routes
