@@ -39,6 +39,10 @@ interface UserInfo {
 }
 
 class RadiusService {
+  // Sanity check constants for RADIUS accounting data
+  private static readonly MAX_REASONABLE_BYTES = 1_000_000_000_000_000; // 1 PB
+  private static readonly MAX_REASONABLE_PACKETS = 100_000_000_000; // 100 billion
+
   // Generate RADIUS password (for PAP authentication)
   // Returns both plaintext (for RADIUS server sync) and hashed (for DB storage)
   static async generatePassword(): Promise<{ plaintext: string; hashed: string }> {
@@ -236,6 +240,27 @@ class RadiusService {
   // Handle Accounting-Request (session start/stop/interim-update)
   async handleAccountingRequest(request: RadiusAccountingRequest): Promise<void> {
     logger.info(`RADIUS Accounting-Request for ${request.username}: ${request.sessionTime}s`);
+
+    // Input validation for RADIUS accounting data
+    if (request.inputOctets < 0 || request.outputOctets < 0) {
+      logger.warn(`RADIUS accounting rejected: negative octets for ${request.username} (inputOctets=${request.inputOctets}, outputOctets=${request.outputOctets})`);
+      return;
+    }
+
+    if (request.inputPackets < 0 || request.outputPackets < 0) {
+      logger.warn(`RADIUS accounting rejected: negative packets for ${request.username} (inputPackets=${request.inputPackets}, outputPackets=${request.outputPackets})`);
+      return;
+    }
+
+    if (request.inputOctets > RadiusService.MAX_REASONABLE_BYTES || request.outputOctets > RadiusService.MAX_REASONABLE_BYTES) {
+      logger.warn(`RADIUS accounting rejected: octets exceed sanity limit for ${request.username} (inputOctets=${request.inputOctets}, outputOctets=${request.outputOctets}, max=${RadiusService.MAX_REASONABLE_BYTES})`);
+      return;
+    }
+
+    if (request.inputPackets > RadiusService.MAX_REASONABLE_PACKETS || request.outputPackets > RadiusService.MAX_REASONABLE_PACKETS) {
+      logger.warn(`RADIUS accounting rejected: packets exceed sanity limit for ${request.username} (inputPackets=${request.inputPackets}, outputPackets=${request.outputPackets}, max=${RadiusService.MAX_REASONABLE_PACKETS})`);
+      return;
+    }
 
     const radiusConfig = await prisma.radiusConfig.findUnique({
       where: { username: request.username },
