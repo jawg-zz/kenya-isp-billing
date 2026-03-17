@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -31,6 +31,7 @@ export default function PaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'airtel'>('mpesa');
   const [isPaying, setIsPaying] = useState(false);
   const [pollingPaymentId, setPollingPaymentId] = useState<string | null>(null);
+  const pollCountRef = useRef(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ['payments', { page }],
@@ -68,8 +69,25 @@ export default function PaymentsPage() {
         setPollingPaymentId(result.data.paymentId);
         setAmount('');
 
-        // Poll for payment status
-        const pollInterval = setInterval(async () => {
+        // Poll for payment status with exponential backoff and jitter
+        pollCountRef.current = 0;
+        let pollInterval: ReturnType<typeof setInterval>;
+        const startTime = Date.now();
+        const maxPollDuration = 120000; // 2 minutes
+
+        const getPollDelay = (count: number) => {
+          const baseDelay = Math.min(20000, 5000 * Math.pow(2, count));
+          const jitter = Math.random() * 1000;
+          return baseDelay + jitter;
+        };
+
+        const poll = async () => {
+          if (Date.now() - startTime > maxPollDuration) {
+            clearInterval(pollInterval);
+            setPollingPaymentId(null);
+            return;
+          }
+
           try {
             const status = await api.checkMpesaStatus(result.data!.paymentId);
             if (status.data?.payment?.status === 'COMPLETED') {
@@ -77,21 +95,31 @@ export default function PaymentsPage() {
               setPollingPaymentId(null);
               toast.success('Payment completed successfully!');
               queryClient.invalidateQueries({ queryKey: ['payments'] });
+              return;
             } else if (status.data?.payment?.status === 'FAILED' || status.data?.payment?.status === 'TIMEOUT') {
               clearInterval(pollInterval);
               setPollingPaymentId(null);
               toast.error('Payment failed or timed out');
+              return;
             }
           } catch {
             // Continue polling
           }
-        }, 5000);
+
+          // Increment poll count, clear current interval, and recreate with new delay
+          pollCountRef.current += 1;
+          clearInterval(pollInterval);
+          pollInterval = setInterval(poll, getPollDelay(pollCountRef.current));
+        };
+
+        // Start first poll after 5s delay
+        pollInterval = setInterval(poll, 5000);
 
         // Stop polling after 2 minutes
         setTimeout(() => {
           clearInterval(pollInterval);
           setPollingPaymentId(null);
-        }, 120000);
+        }, maxPollDuration);
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
