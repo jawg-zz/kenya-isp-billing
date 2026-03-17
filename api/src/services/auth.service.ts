@@ -184,7 +184,7 @@ class AuthService {
 
       // Check if refresh token exists in database
       const storedToken = await prisma.refreshToken.findUnique({
-        where: { token: decoded.jti },
+        where: { id: decoded.jti },
         include: { user: true },
       });
 
