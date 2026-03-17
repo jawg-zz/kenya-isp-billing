@@ -379,7 +379,7 @@ class RadiusService {
         try {
             const { username, password, isActive = true } = config;
             // Check if FreeRADIUS radcheck table exists
-            const tableExists = await database_1.prisma.$queryRaw < { exists: boolean }[] `
+            const tableExists = await database_1.prisma.$queryRaw `
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
