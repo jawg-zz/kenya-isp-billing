@@ -88,7 +88,7 @@ export default function CustomerDetailPage() {
     queryKey: ['customer-detail', customerId],
     queryFn: async () => {
       const res = await api.getCustomer(customerId);
-      return res.data as { customer: Customer };
+      return res.data as unknown as { customer: Customer };
     },
     enabled: !!customerId,
   });

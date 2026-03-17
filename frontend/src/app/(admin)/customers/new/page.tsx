@@ -61,7 +61,7 @@ export default function NewCustomerPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CustomerForm) => {
-      return api.createCustomer(data as Record<string, unknown>);
+      return api.createCustomer(data as unknown as Record<string, unknown>);
     },
     onSuccess: () => {
       toast.success('Customer created successfully');

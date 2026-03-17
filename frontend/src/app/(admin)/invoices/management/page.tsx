@@ -56,15 +56,15 @@ export default function AdminInvoicesPage() {
       queryClient.invalidateQueries({ queryKey: ['invoice-stats'] });
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } };
+      const error = err as unknown as { response?: { data?: { message?: string } } };
       toast.error(error.response?.data?.message || 'Failed to generate invoices');
     },
   });
 
   if (!user) return null;
 
-  const invoices = (data as { invoices?: Record<string, unknown>[] })?.invoices || [];
-  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
+  const invoices = (data as unknown as { invoices?: Record<string, unknown>[] })?.invoices || [];
+  const meta = (data as unknown as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
   const s = stats as Record<string, unknown> | undefined;
 
   return (

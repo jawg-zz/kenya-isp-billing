@@ -122,9 +122,9 @@ export default function AdminSubscriptionsPage() {
 
   if (!user) return null;
 
-  const subscriptions = (data as { subscriptions?: Subscription[] })?.subscriptions || [];
-  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
-  const expiring = (expiringData as { subscriptions?: Subscription[] })?.subscriptions || [];
+  const subscriptions = (data as unknown as { subscriptions?: Subscription[] })?.subscriptions || [];
+  const meta = (data as unknown as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
+  const expiring = (expiringData as unknown as { subscriptions?: Subscription[] })?.subscriptions || [];
 
   // Compute stats from current page data
   const allSubs = subscriptions;

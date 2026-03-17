@@ -71,7 +71,7 @@ export default function AdminCustomersPage() {
     queryKey: ['admin-customers', { page, search, status: statusFilter }],
     queryFn: async () => {
       const res = await api.getCustomers({ page, limit: 15, search: search || undefined, status: statusFilter || undefined });
-      return res.data as CustomerResponse;
+      return res.data as unknown as CustomerResponse;
     },
   });
 
@@ -79,7 +79,7 @@ export default function AdminCustomersPage() {
     queryKey: ['customer-stats'],
     queryFn: async () => {
       const res = await api.getCustomerStats();
-      return res.data as CustomerStats;
+      return res.data as unknown as CustomerStats;
     },
   });
 

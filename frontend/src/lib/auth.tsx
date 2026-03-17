@@ -14,6 +14,11 @@ interface User {
   accountStatus: string;
   phoneVerified: boolean;
   emailVerified: boolean;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  county?: string;
+  postalCode?: string;
   customer?: {
     customerCode: string;
     accountNumber: string;
@@ -46,6 +51,22 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cookie helpers for middleware-based route protection
+function setAuthCookies(role?: string) {
+  if (typeof document === 'undefined') return;
+  // Set a marker cookie for the middleware (actual auth is via localStorage/bearer token)
+  document.cookie = `isp_authenticated=true; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=lax`;
+  if (role) {
+    document.cookie = `isp_user_role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=lax`;
+  }
+}
+
+function clearAuthCookies() {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'isp_authenticated=; path=/; max-age=0';
+  document.cookie = 'isp_user_role=; path=/; max-age=0';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (storedUser) {
         setUser(storedUser as unknown as User);
+        setAuthCookies((storedUser as unknown as User).role);
       }
 
       // Always fetch fresh profile
@@ -90,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.user as unknown as User;
       setUser(userData);
       api.setUser(response.data.user as Record<string, unknown>);
+      setAuthCookies(userData.role);
     }
   };
 
@@ -100,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.user as unknown as User;
       setUser(userData);
       api.setUser(response.data.user as Record<string, unknown>);
+      setAuthCookies(userData.role);
     }
   };
 
@@ -110,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout errors
     }
     api.clearTokens();
+    clearAuthCookies();
     setUser(null);
     router.push('/login');
   };

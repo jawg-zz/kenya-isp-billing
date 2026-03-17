@@ -66,8 +66,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Rate limiting (disabled during development)
-// app.use(rateLimiter);
+// Rate limiting (disabled in development, enabled in production)
+if (config.env === 'production') {
+  app.use(rateLimiter);
+}
 
 // Input sanitization
 app.use(sanitize);

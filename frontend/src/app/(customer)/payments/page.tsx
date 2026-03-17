@@ -129,8 +129,8 @@ export default function PaymentsPage() {
 
   if (!user) return null;
 
-  const payments = (data as { payments?: Record<string, unknown>[] })?.payments || [];
-  const meta = (data as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
+  const payments = (data as unknown as { payments?: Record<string, unknown>[] })?.payments || [];
+  const meta = (data as unknown as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
 
   return (
     <MainLayout user={user}>

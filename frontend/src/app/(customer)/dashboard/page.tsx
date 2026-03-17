@@ -83,6 +83,14 @@ export default function CustomerDashboard() {
   const subscriptions = (subscriptionsData as { subscriptions?: unknown[] })?.subscriptions || [];
   const activeSub = subscriptions.find((s: Record<string, unknown>) => s.status === 'ACTIVE') as Record<string, unknown> | undefined;
   const plan = activeSub?.plan as Record<string, unknown> | undefined;
+  const planName = (plan?.name as string) || 'No Plan';
+  const planDataAllowance = plan?.dataAllowance as number | undefined;
+  const planSpeedLimit = plan?.speedLimit as number | undefined;
+  const planBillingCycle = plan?.billingCycle as string | undefined;
+  const planValidityDays = plan?.validityDays as number | undefined;
+  const subStartDate = activeSub?.startDate as string | undefined;
+  const subEndDate = activeSub?.endDate as string | undefined;
+  const subAutoRenew = activeSub?.autoRenew as boolean | undefined;
 
   return (
     <MainLayout user={user}>
@@ -101,7 +109,7 @@ export default function CustomerDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Current Plan"
-            value={plan?.name || 'No Plan'}
+            value={planName}
             subtitle={activeSub ? undefined : 'Subscribe to a plan'}
             icon={Wifi}
             color="blue"
@@ -152,25 +160,25 @@ export default function CustomerDashboard() {
                   {formatKES(Number(plan?.price || 0))}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {plan?.billingCycle?.toString().toLowerCase() || `Valid for ${plan?.validityDays} days`}
+                  {planBillingCycle?.toLowerCase() || `Valid for ${planValidityDays || 0} days`}
                 </p>
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Data Allowance</p>
                 <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                  {plan?.dataAllowance ? formatBytes(Number(plan.dataAllowance)) : 'Unlimited'}
+                  {planDataAllowance ? formatBytes(Number(planDataAllowance)) : 'Unlimited'}
                 </p>
-                {plan?.speedLimit && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{plan.speedLimit} Mbps</p>
+                {planSpeedLimit && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{planSpeedLimit} Mbps</p>
                 )}
               </div>
               <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Subscription Period</p>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white mt-1">
-                  {format(new Date(activeSub.startDate as string), 'MMM d, yyyy')} —{' '}
-                  {format(new Date(activeSub.endDate as string), 'MMM d, yyyy')}
+                  {subStartDate ? format(new Date(subStartDate), 'MMM d, yyyy') : '—'} —{' '}
+                  {subEndDate ? format(new Date(subEndDate), 'MMM d, yyyy') : '—'}
                 </p>
-                {activeSub.autoRenew && (
+                {subAutoRenew && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1">
                     <TrendingUp className="h-3 w-3" /> Auto-renew enabled
                   </p>
@@ -351,7 +359,7 @@ export default function CustomerDashboard() {
         {/* Subscription Expiry Warning */}
         {activeSub && (
           (() => {
-            const endDate = new Date(activeSub.endDate as string);
+            const endDate = new Date(subEndDate || Date.now());
             const now = new Date();
             const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             if (daysLeft <= 7 && daysLeft > 0) {

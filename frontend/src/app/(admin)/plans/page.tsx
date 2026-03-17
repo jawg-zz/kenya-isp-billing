@@ -76,7 +76,7 @@ export default function AdminPlansPage() {
     queryKey: ['admin-plans'],
     queryFn: async () => {
       const res = await api.getPlans();
-      return res.data as PlansResponse;
+      return res.data as unknown as PlansResponse;
     },
   });
 

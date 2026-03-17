@@ -48,7 +48,7 @@ function NotificationsPage() {
     queryKey: ['notifications', { page }],
     queryFn: async () => {
       const res = await api.getNotifications({ page, limit: 20 });
-      return res.data as { notifications: Notification[]; meta: Record<string, unknown> };
+      return res.data as unknown as { notifications: Notification[]; meta: Record<string, unknown> };
     },
   });
 

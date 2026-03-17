@@ -7,7 +7,10 @@ import { Toaster } from 'sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'ISP Billing Portal',
+  title: {
+    template: '%s | ISP Billing Portal',
+    default: 'ISP Billing Portal',
+  },
   description: 'Customer billing portal for your ISP',
   icons: {
     icon: '/favicon.svg',

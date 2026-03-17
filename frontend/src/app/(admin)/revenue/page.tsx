@@ -56,8 +56,8 @@ export default function AdminRevenuePage() {
   if (!user) return null;
 
   const stats = paymentStats as Record<string, unknown> | undefined;
-  const payments = (paymentsData as { payments?: Record<string, unknown>[] })?.payments || [];
-  const meta = (paymentsData as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
+  const payments = (paymentsData as unknown as { payments?: Record<string, unknown>[] })?.payments || [];
+  const meta = (paymentsData as unknown as { meta?: { total: number; page: number; totalPages: number } })?.meta || { total: 0, page: 1, totalPages: 1 };
 
   const paymentsByDay = (stats?.paymentsByDay as Array<{ date: string; totalAmount: string; count: string }>) || [];
   const paymentsByMethod = (stats?.paymentsByMethod as Array<{ method: string; _sum: { amount: string }; _count: number }>) || [];

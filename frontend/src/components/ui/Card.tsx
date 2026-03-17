@@ -6,9 +6,10 @@ interface CardProps {
   className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
   hover?: boolean;
+  onClick?: () => void;
 }
 
-export function Card({ children, className, padding = 'md', hover = false }: CardProps) {
+export function Card({ children, className, padding = 'md', hover = false, onClick }: CardProps) {
   const paddings = {
     none: '',
     sm: 'p-3',
@@ -17,14 +18,17 @@ export function Card({ children, className, padding = 'md', hover = false }: Car
   };
 
   return (
-    <div className={twMerge(
-      clsx(
-        'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700',
-        paddings[padding],
-        hover && 'transition-all duration-200 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600',
-        className
-      )
-    )}>
+    <div
+      onClick={onClick}
+      className={twMerge(
+        clsx(
+          'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700',
+          paddings[padding],
+          hover && 'transition-all duration-200 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600',
+          onClick && 'cursor-pointer',
+          className
+        )
+      )}>
       {children}
     </div>
   );
