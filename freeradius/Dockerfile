@@ -16,8 +16,10 @@ COPY clients.conf /etc/freeradius/3.0/clients.conf
 COPY mods-available/rest /etc/freeradius/3.0/mods-available/rest
 
 # Enable SQL (from freeradius-postgresql package) and REST modules
+# Disable EAP (not needed for PAP auth) and eap to avoid ${max_requests} error
 RUN ln -sf /etc/freeradius/3.0/mods-available/sql /etc/freeradius/3.0/mods-enabled/sql && \
     ln -sf /etc/freeradius/3.0/mods-available/rest /etc/freeradius/3.0/mods-enabled/rest 2>/dev/null || true
+RUN rm -f /etc/freeradius/3.0/mods-enabled/eap
 
 # Copy entrypoint script
 COPY scripts/entrypoint.sh /docker-entrypoint.sh
