@@ -69,6 +69,9 @@ services:
       AT_API_KEY: ${AT_API_KEY:-}
       AT_USERNAME: ${AT_USERNAME:-}
       RADIUS_SECRET: ${RADIUS_SECRET:-changeme_use_strong_secret}
+      RADIUS_HOST: freeradius
+      RADIUS_PORT: 1812
+      RADIUS_ACCOUNTING_PORT: 1813
       DEFAULT_CURRENCY: KES
       TAX_RATE: "0.16"
     expose:
@@ -79,6 +82,35 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+  freeradius:
+    build:
+      context: ./freeradius
+      dockerfile: Dockerfile
+    container_name: isp_billing_freeradius
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      RADIUS_SECRET: ${RADIUS_SECRET:-changeme_use_strong_secret}
+      POSTGRES_USER: ${POSTGRES_USER:-isp_billing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-isp_billing_password}
+      POSTGRES_DB: ${POSTGRES_DB:-isp_billing}
+      RADIUS_DB_HOST: postgres
+      RADIUS_DB_PORT: 5432
+    ports:
+      - "1812:1812/udp"   # RADIUS Authentication
+      - "1813:1813/udp"   # RADIUS Accounting
+      - "3799:3799/udp"   # RADIUS CoA (Change of Authorization)
+    healthcheck:
+      test: ["CMD-SHELL", "radtest localhost testing123 127.0.0.1 0 testing 2>/dev/null || echo 'check'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - default
 
   frontend:
     build:
