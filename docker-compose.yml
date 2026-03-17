@@ -104,7 +104,7 @@ services:
       - "1813:1813/udp"   # RADIUS Accounting
       - "3799:3799/udp"   # RADIUS CoA (Change of Authorization)
     healthcheck:
-      test: ["CMD-SHELL", "echo"]
+      test: ["CMD-SHELL", "pgrep -x freeradius"]
       interval: 30s
       timeout: 10s
       retries: 3
