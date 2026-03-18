@@ -11,6 +11,7 @@ import {
   updateProfileSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  verifyPhoneSchema,
 } from '../validators/auth.validator';
 
 const router: IRouter = Router();
