@@ -312,7 +312,7 @@
                     <span class="value" id="credExpiry">-</span>
                 </div>
             </div>
-            <a href="$PORTAL_ACTION$" class="btn-connect">Go to Login Page →</a>
+            <a href="$PORTAL_ACTION$" class="btn-connect" id="manualLogin" style="display:none;">Go to Login Page →</a>
         </div>
 
         <div class="footer">
@@ -428,12 +428,48 @@
         }
 
         function showCredentials(data) {
+            // Show success briefly
             document.getElementById('processing').classList.remove('visible');
             document.getElementById('success').classList.add('visible');
             document.getElementById('credUser').textContent = data.username;
             document.getElementById('credPass').textContent = data.password;
             document.getElementById('credPackage').textContent = data.packageName;
             document.getElementById('credExpiry').textContent = data.expiresAt;
+
+            // Update success message
+            document.querySelector('#success h3').textContent = 'Connecting...';
+            document.querySelector('#success p').textContent = 'Logging you in automatically.';
+
+            // Auto-login to MikroTik hotspot after 2 seconds
+            setTimeout(function() {
+                autoLogin(data.username, data.password);
+            }, 2000);
+        }
+
+        // Auto-submit credentials to MikroTik hotspot login form
+        function autoLogin(username, password) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '$PORTAL_ACTION$';
+            form.style.display = 'none';
+
+            var fields = {
+                'username': username,
+                'password': password,
+                'dst': '$PORTAL_HOSTNAME$$PORTAL_ORIG_URL$',
+                'popup': 'true'
+            };
+
+            for (var key in fields) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = fields[key];
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
         }
     </script>
 </body>
