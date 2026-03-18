@@ -17,7 +17,7 @@ router.get('/sessions', authenticate, authorize('ADMIN', 'SUPPORT'), async (req:
 
     const where: any = {};
     if (status && status !== 'all') {
-      where.status = status;
+      where.status = String(status).toUpperCase();
     }
 
     const [sessions, total] = await Promise.all([
