@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 
 export interface ReportPeriod {
@@ -42,12 +43,17 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE role = 'CUSTOMER' AND ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql`WHERE role = 'CUSTOMER'`;
+
     const results = await prisma.$queryRaw<Array<{ period: Date; count: bigint }>>`
       SELECT ${truncate} as period, COUNT(*)::bigint as count
       FROM users
-      WHERE role = 'CUSTOMER'
-      ${dateFilter && dateFilter.gte ? `AND "createdAt" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `AND "createdAt" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY period
       ORDER BY period ASC
     `;
@@ -68,15 +74,19 @@ class ReportService {
         ? `DATE_TRUNC('week', "updatedAt")`
         : `DATE_TRUNC('day', "updatedAt")`;
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"updatedAt" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"updatedAt" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED') AND ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql`WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED')`;
+
     const results = await prisma.$queryRaw<Array<{ period: Date; churned: bigint; suspended: bigint }>>`
       SELECT ${truncate} as period,
         COUNT(*) FILTER (WHERE "accountStatus" = 'TERMINATED')::bigint as churned,
         COUNT(*) FILTER (WHERE "accountStatus" = 'SUSPENDED')::bigint as suspended
       FROM users
-      WHERE role = 'CUSTOMER'
-        AND "accountStatus" IN ('TERMINATED', 'SUSPENDED')
-        ${dateFilter && dateFilter.gte ? `AND "updatedAt" >= ${dateFilter.gte}` : ''}
-        ${dateFilter && dateFilter.lte ? `AND "updatedAt" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY period
       ORDER BY period ASC
     `;
@@ -143,13 +153,19 @@ class ReportService {
         ? `DATE_TRUNC('week', "timestamp")`
         : `DATE_TRUNC('day', "timestamp")`;
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"timestamp" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"timestamp" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{ period: Date; total_octets: bigint; record_count: bigint }>>`
       SELECT ${truncate} as period,
         COALESCE(SUM("totalOctets"), 0)::bigint as total_octets,
         COUNT(*)::bigint as record_count
       FROM usage_records
-      ${dateFilter && dateFilter.gte ? `WHERE "timestamp" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} "timestamp" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY period
       ORDER BY period ASC
     `;
@@ -166,6 +182,13 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`ur."timestamp" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`ur."timestamp" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{
       user_id: string;
       total_octets: bigint;
@@ -175,8 +198,7 @@ class ReportService {
         COALESCE(SUM(ur."totalOctets"), 0)::bigint as total_octets,
         COUNT(*)::bigint as record_count
       FROM usage_records ur
-      ${dateFilter && dateFilter.gte ? `WHERE ur."timestamp" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} ur."timestamp" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY ur."userId"
       ORDER BY total_octets DESC
       LIMIT ${topN}
@@ -241,13 +263,19 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"timestamp" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"timestamp" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{ hour: number; total_octets: bigint; session_count: bigint }>>`
       SELECT EXTRACT(HOUR FROM "timestamp")::int as hour,
         COALESCE(SUM("totalOctets"), 0)::bigint as total_octets,
         COUNT(*)::bigint as session_count
       FROM usage_records
-      ${dateFilter && dateFilter.gte ? `WHERE "timestamp" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} "timestamp" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY hour
       ORDER BY hour ASC
     `;
@@ -273,6 +301,13 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`ur."timestamp" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`ur."timestamp" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{
       plan_name: string;
       plan_id: string;
@@ -285,8 +320,7 @@ class ReportService {
       FROM usage_records ur
       JOIN subscriptions s ON ur."subscriptionId" = s.id
       JOIN plans p ON s."planId" = p.id
-      ${dateFilter && dateFilter.gte ? `WHERE ur."timestamp" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} ur."timestamp" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY p.name, p.id
       ORDER BY total_octets DESC
     `;
@@ -312,6 +346,13 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{
       period: Date;
       total: bigint;
@@ -323,8 +364,7 @@ class ReportService {
         COUNT(*) FILTER (WHERE status = 'PAID')::bigint as paid,
         COUNT(*) FILTER (WHERE status IN ('PENDING', 'OVERDUE'))::bigint as outstanding
       FROM invoices
-      ${dateFilter && dateFilter.gte ? `WHERE "createdAt" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} "createdAt" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY period
       ORDER BY period ASC
     `;
@@ -342,13 +382,19 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`i."createdAt" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`i."createdAt" <= ${dateFilter.lte}`);
+    const dateWhereClause = dateConditions.length > 0
+      ? Prisma.sql` AND ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{ avg_days: number }>>`
       SELECT AVG(EXTRACT(EPOCH FROM (i."paidAt" - i."createdAt")) / 86400)::float as avg_days
       FROM invoices i
       WHERE i."paidAt" IS NOT NULL
       AND i.status = 'PAID'
-      ${dateFilter && dateFilter.gte ? `AND i."createdAt" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `AND i."createdAt" <= ${dateFilter.lte}` : ''}
+      ${dateWhereClause}
     `;
 
     return {
@@ -436,6 +482,13 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
+    const dateConditions: Prisma.Sql[] = [];
+    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
+    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const whereClause = dateConditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
+      : Prisma.sql``;
+
     const results = await prisma.$queryRaw<Array<{
       period: Date;
       collected: bigint;
@@ -445,8 +498,7 @@ class ReportService {
         COALESCE(SUM("totalAmount") FILTER (WHERE status = 'PAID'), 0)::bigint as collected,
         COALESCE(SUM("totalAmount") FILTER (WHERE status IN ('PENDING', 'OVERDUE')), 0)::bigint as outstanding
       FROM invoices
-      ${dateFilter && dateFilter.gte ? `WHERE "createdAt" >= ${dateFilter.gte}` : ''}
-      ${dateFilter && dateFilter.lte ? `${dateFilter.gte ? 'AND' : 'WHERE'} "createdAt" <= ${dateFilter.lte}` : ''}
+      ${whereClause}
       GROUP BY period
       ORDER BY period ASC
     `;
