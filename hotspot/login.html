@@ -123,7 +123,7 @@
         <form method="post" action="$PORTAL_ACTION$">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
@@ -133,6 +133,11 @@
             <input type="hidden" name="popup" value="true">
             <button type="submit" class="btn-login">Connect to Internet</button>
         </form>
+
+        <div style="text-align:center; margin: 15px 0;">
+            <span style="color:#888; font-size:14px;">Don't have an account?</span>
+            <a href="/hotspot/packages.html" style="color:#667eea; font-weight:600; text-decoration:none; margin-left:5px;">Buy a Package</a>
+        </div>
 
         <div class="info-box">
             <strong>Need help?</strong><br>

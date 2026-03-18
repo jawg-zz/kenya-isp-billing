@@ -4,6 +4,7 @@ import { cache } from '../config/redis';
 import { Decimal } from '@prisma/client/runtime/library';
 import { mpesaService } from '../services/mpesa.service';
 import { airtelService } from '../services/airtel.service';
+import { hotspotService } from '../services/hotspot.service';
 import { smsService } from '../services/sms.service';
 import { AuthenticatedRequest, ApiResponse, MpesaCallback, AirtelCallback } from '../types';
 import { logger } from '../config/logger';
@@ -110,6 +111,13 @@ class PaymentController {
       }
 
       await mpesaService.processCallback(callback);
+
+      // Also check if this is a hotspot purchase
+      if (callback?.Body?.stkCallback?.CheckoutRequestID) {
+        const { CheckoutRequestID, ResultCode, CallbackMetadata } = callback.Body.stkCallback;
+        hotspotService.processPaymentCallback(CheckoutRequestID, ResultCode, CallbackMetadata)
+          .catch(err => logger.error('Hotspot callback processing error:', err));
+      }
 
       // Invalidate admin revenue/invoice caches on payment completion
       await cache.invalidatePattern('admin:revenue:*');

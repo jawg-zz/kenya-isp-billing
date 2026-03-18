@@ -33,6 +33,7 @@ import settingsRoutes from './routes/settings.routes';
 import adminRoutes from './routes/admin.routes';
 import reportRoutes from './routes/report.routes';
 import notificationSSERoutes from './routes/notificationSSE';
+import hotspotRoutes from './routes/hotspot.routes';
 import { startScheduler, stopScheduler } from './workers/scheduler';
 
 const app: Express = express();
@@ -167,6 +168,7 @@ app.use(`${config.apiPrefix}/customers`, customerRoutes);
 app.use(`${config.apiPrefix}/radius`, radiusRoutes);
 app.use(`${config.apiPrefix}/audit`, auditRoutes);
 app.use(`${config.apiPrefix}/settings`, settingsRoutes);
+app.use(`${config.apiPrefix}/hotspot`, hotspotRoutes);
 app.use(`${config.apiPrefix}/admin`, adminRoutes);
 app.use(`${config.apiPrefix}/reports`, reportRoutes);
 app.use(`${config.apiPrefix}/notifications/stream`, notificationSSERoutes);
