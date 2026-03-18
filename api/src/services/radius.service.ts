@@ -997,6 +997,431 @@ class RadiusService {
       return false;
     }
   }
+
+  // ========================
+  // NAS (Network Access Server) Management
+  // ========================
+
+  /**
+   * List all NAS devices with pagination
+   */
+  async listNas(options: { page?: number; limit?: number; isActive?: boolean } = {}) {
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (options.isActive !== undefined) {
+      where.isActive = options.isActive;
+    }
+
+    const [devices, total] = await Promise.all([
+      prisma.nas.findMany({
+        where,
+        include: {
+          _count: { select: { sessions: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.nas.count({ where }),
+    ]);
+
+    return {
+      devices,
+      meta: { total, page, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
+   * Get a single NAS by ID
+   */
+  async getNas(id: string) {
+    const nas = await prisma.nas.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { sessions: true } },
+      },
+    });
+    if (!nas) throw new AppError('NAS device not found', 404);
+    return nas;
+  }
+
+  /**
+   * Create a new NAS device
+   */
+  async createNas(data: {
+    nasname: string;
+    shortname?: string;
+    type?: string;
+    ports?: number;
+    secret: string;
+    server?: string;
+    description?: string;
+  }) {
+    const nas = await prisma.nas.create({
+      data: {
+        nasname: data.nasname,
+        shortname: data.shortname,
+        type: data.type || 'other',
+        ports: data.ports,
+        secret: data.secret,
+        server: data.server,
+        description: data.description || 'RADIUS Client',
+        isActive: true,
+      },
+    });
+
+    // Sync to FreeRADIUS radclient table
+    await this.syncNasToRadius(nas);
+
+    logger.info(`NAS device created: ${nas.nasname} (${nas.id})`);
+    return nas;
+  }
+
+  /**
+   * Update a NAS device
+   */
+  async updateNas(
+    id: string,
+    data: Partial<{
+      nasname: string;
+      shortname: string;
+      type: string;
+      ports: number;
+      secret: string;
+      server: string;
+      description: string;
+      isActive: boolean;
+    }>
+  ) {
+    const existing = await prisma.nas.findUnique({ where: { id } });
+    if (!existing) throw new AppError('NAS device not found', 404);
+
+    const nas = await prisma.nas.update({
+      where: { id },
+      data,
+    });
+
+    // Re-sync to FreeRADIUS if secret or nasname changed
+    if (data.secret || data.nasname || data.isActive !== undefined) {
+      await this.syncNasToRadius(nas);
+    }
+
+    logger.info(`NAS device updated: ${nas.nasname} (${nas.id})`);
+    return nas;
+  }
+
+  /**
+   * Delete a NAS device
+   */
+  async deleteNas(id: string) {
+    const existing = await prisma.nas.findUnique({ where: { id } });
+    if (!existing) throw new AppError('NAS device not found', 404);
+
+    // Remove from FreeRADIUS radclient table
+    await this.removeNasFromRadius(existing.nasname);
+
+    // Remove the NAS (sessions keep nasIpAddress for historical data)
+    await prisma.nas.delete({ where: { id } });
+
+    logger.info(`NAS device deleted: ${existing.nasname} (${id})`);
+  }
+
+  /**
+   * Get active sessions for a specific NAS
+   */
+  async getNasSessions(nasId: string, options: { page?: number; limit?: number } = {}) {
+    const nas = await prisma.nas.findUnique({ where: { id: nasId } });
+    if (!nas) throw new AppError('NAS device not found', 404);
+
+    const page = options.page || 1;
+    const limit = options.limit || 50;
+    const skip = (page - 1) * limit;
+
+    const [sessions, total] = await Promise.all([
+      prisma.radiusSession.findMany({
+        where: {
+          OR: [{ nasId }, { nasIpAddress: nas.nasname }],
+          status: 'ACTIVE',
+        },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              customer: {
+                select: { accountNumber: true, customerCode: true },
+              },
+            },
+          },
+        },
+        orderBy: { startTime: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.radiusSession.count({
+        where: {
+          OR: [{ nasId }, { nasIpAddress: nas.nasname }],
+          status: 'ACTIVE',
+        },
+      }),
+    ]);
+
+    return {
+      sessions,
+      meta: { total, page, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
+   * Sync NAS to FreeRADIUS radclient table
+   */
+  private async syncNasToRadius(nas: {
+    nasname: string;
+    secret: string;
+    isActive: boolean;
+    shortname?: string | null;
+    server?: string | null;
+  }): Promise<void> {
+    try {
+      const tableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'radclient'
+        ) as exists
+      ` as { exists: boolean }[];
+
+      if (!tableExists[0]?.exists) {
+        logger.warn('FreeRADIUS radclient table not found, skipping NAS sync');
+        return;
+      }
+
+      // Delete existing radclient record for this NAS
+      await prisma.$executeRaw`
+        DELETE FROM radclient WHERE ipaddr = ${nas.nasname}
+      `;
+
+      if (nas.isActive) {
+        await prisma.$executeRaw`
+          INSERT INTO radclient (ipaddr, secret, shortname, nasname)
+          VALUES (${nas.nasname}, ${nas.secret}, ${nas.shortname || ''}, ${nas.shortname || ''})
+        `;
+        logger.info(`NAS ${nas.nasname} synced to radclient table`);
+      } else {
+        logger.info(`NAS ${nas.nasname} disabled (radclient record removed)`);
+      }
+    } catch (error) {
+      logger.error(`Failed to sync NAS ${nas.nasname} to FreeRADIUS:`, error);
+    }
+  }
+
+  /**
+   * Remove NAS from FreeRADIUS radclient table
+   */
+  private async removeNasFromRadius(nasname: string): Promise<void> {
+    try {
+      const tableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'radclient'
+        ) as exists
+      ` as { exists: boolean }[];
+
+      if (!tableExists[0]?.exists) return;
+
+      await prisma.$executeRaw`
+        DELETE FROM radclient WHERE ipaddr = ${nasname}
+      `;
+      logger.info(`NAS ${nasname} removed from radclient table`);
+    } catch (error) {
+      logger.error(`Failed to remove NAS ${nasname} from FreeRADIUS:`, error);
+    }
+  }
+
+  // ========================
+  // Customer RADIUS Credential Management
+  // ========================
+
+  /**
+   * Get customer's RADIUS config and active sessions
+   */
+  async getCustomerRadiusConfig(customerId: string) {
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+        radiusConfig: true,
+      },
+    });
+
+    if (!customer) throw new AppError('Customer not found', 404);
+
+    const activeSessions = await prisma.radiusSession.findMany({
+      where: {
+        userId: customer.userId,
+        status: 'ACTIVE',
+      },
+      orderBy: { startTime: 'desc' },
+    });
+
+    return {
+      customer: {
+        id: customer.id,
+        accountNumber: customer.accountNumber,
+        customerCode: customer.customerCode,
+        user: customer.user,
+      },
+      radiusConfig: customer.radiusConfig
+        ? {
+            username: customer.radiusConfig.username,
+            isActive: customer.radiusConfig.isActive,
+            createdAt: customer.radiusConfig.createdAt,
+          }
+        : null,
+      activeSessions,
+    };
+  }
+
+  /**
+   * Reset customer's RADIUS password
+   */
+  async resetCustomerRadiusPassword(customerId: string): Promise<string> {
+    return this.updatePassword(customerId);
+  }
+
+  /**
+   * Force disconnect all active sessions for a customer
+   */
+  async disconnectCustomerSessions(customerId: string): Promise<number> {
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      include: { radiusConfig: true },
+    });
+
+    if (!customer) throw new AppError('Customer not found', 404);
+    if (!customer.radiusConfig) throw new AppError('RADIUS config not found for customer', 404);
+
+    const activeSessions = await prisma.radiusSession.findMany({
+      where: { userId: customer.userId, status: 'ACTIVE' },
+    });
+
+    if (activeSessions.length === 0) return 0;
+
+    // Send disconnect requests to NAS devices
+    await this.disconnectUser(customer.radiusConfig.username);
+
+    return activeSessions.length;
+  }
+
+  // ========================
+  // Speed Plan RADIUS Attribute Sync
+  // ========================
+
+  /**
+   * Sync a plan's speed attributes to FreeRADIUS radgroupreply table
+   */
+  async syncPlanToRadius(planId: string): Promise<{ plan: string; attributes: string[] }> {
+    const plan = await prisma.plan.findUnique({ where: { id: planId } });
+    if (!plan) throw new AppError('Plan not found', 404);
+
+    const attributes: string[] = [];
+
+    try {
+      const tableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'radgroupreply'
+        ) as exists
+      ` as { exists: boolean }[];
+
+      if (!tableExists[0]?.exists) {
+        logger.warn('FreeRADIUS radgroupreply table not found, skipping plan sync');
+        return { plan: plan.name, attributes };
+      }
+
+      const groupname = `plan_${plan.code.toLowerCase()}`;
+
+      // Delete existing radgroupreply records for this plan group
+      await prisma.$executeRaw`
+        DELETE FROM radgroupreply WHERE groupname = ${groupname}
+      `;
+
+      // Insert speed limit attribute (MikroTik-Router-Limit-Bytes-Total-Out = 0 means unlimited)
+      if (plan.speedLimit && plan.speedLimit > 0) {
+        // Convert Mbps to bps for FreeRADIUS
+        const speedLimitBps = plan.speedLimit * 1000000;
+        await prisma.$executeRaw`
+          INSERT INTO radgroupreply (groupname, attribute, op, value)
+          VALUES (${groupname}, 'MikroTik-Rate-Limit', ':=', ${`${speedLimitBps}/${speedLimitBps}`})
+        `;
+        attributes.push(`MikroTik-Rate-Limit: ${speedLimitBps}/${speedLimitBps}`);
+      }
+
+      // Insert FUP speed limit (MikroTik-Filter-Rule or queue simple)
+      if (plan.fupSpeedLimit && plan.fupSpeedLimit > 0) {
+        const fupSpeedBps = plan.fupSpeedLimit * 1000000;
+        // Store FUP limit for reference - actual enforcement via CoA
+        await prisma.$executeRaw`
+          INSERT INTO radgroupreply (groupname, attribute, op, value)
+          VALUES (${groupname}, 'MikroTik-Filter-Rule', ':=', ${`${fupSpeedBps}/${fupSpeedBps}`})
+        `;
+        attributes.push(`MikroTik-Filter-Rule: ${fupSpeedBps}/${fupSpeedBps}`);
+      }
+
+      // Always add service-type for the group
+      await prisma.$executeRaw`
+        INSERT INTO radgroupreply (groupname, attribute, op, value)
+        VALUES (${groupname}, 'Service-Type', ':=', 'Framed-User')
+      `;
+      attributes.push('Service-Type: Framed-User');
+
+      logger.info(`Plan ${plan.name} synced to radgroupreply as group '${groupname}'`);
+    } catch (error) {
+      logger.error(`Failed to sync plan ${plan.name} to FreeRADIUS:`, error);
+      throw new AppError(`Failed to sync plan to FreeRADIUS: ${(error as Error).message}`, 500);
+    }
+
+    return { plan: plan.name, attributes };
+  }
+
+  /**
+   * Sync all active plans to FreeRADIUS radgroupreply table
+   */
+  async syncAllPlansToRadius(): Promise<{ planId: string; planName: string; attributes: string[] }[]> {
+    const activePlans = await prisma.plan.findMany({
+      where: { isActive: true },
+    });
+
+    const results: { planId: string; planName: string; attributes: string[] }[] = [];
+
+    for (const plan of activePlans) {
+      try {
+        const result = await this.syncPlanToRadius(plan.id);
+        results.push({
+          planId: plan.id,
+          planName: result.plan,
+          attributes: result.attributes,
+        });
+      } catch (error) {
+        logger.error(`Failed to sync plan ${plan.name}:`, error);
+        results.push({
+          planId: plan.id,
+          planName: plan.name,
+          attributes: [],
+        });
+      }
+    }
+
+    logger.info(`Synced ${results.length} plans to FreeRADIUS`);
+    return results;
+  }
 }
 
 export const radiusService = new RadiusService();

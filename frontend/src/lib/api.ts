@@ -450,6 +450,70 @@ class ApiClient {
     return data;
   }
 
+  // RADIUS NAS
+  async getRadiusNas() {
+    const { data } = await this.client.get<ApiResponse<{ nas: Record<string, unknown>[] }>>('/radius/nas');
+    return data;
+  }
+
+  async createRadiusNas(payload: Record<string, unknown>) {
+    const { data } = await this.client.post<ApiResponse<{ nas: Record<string, unknown> }>>('/radius/nas', payload);
+    return data;
+  }
+
+  async updateRadiusNas(id: string, payload: Record<string, unknown>) {
+    const { data } = await this.client.put<ApiResponse<{ nas: Record<string, unknown> }>>(`/radius/nas/${id}`, payload);
+    return data;
+  }
+
+  async deleteRadiusNas(id: string) {
+    const { data } = await this.client.delete<ApiResponse>(`/radius/nas/${id}`);
+    return data;
+  }
+
+  // RADIUS Customers
+  async getRadiusCustomer(customerId: string) {
+    const { data } = await this.client.get<ApiResponse<{ customer: Record<string, unknown> }>>(`/radius/customers/${customerId}`);
+    return data;
+  }
+
+  async resetRadiusPassword(customerId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/customers/${customerId}/reset-password`);
+    return data;
+  }
+
+  async disconnectRadiusCustomer(customerId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/customers/${customerId}/disconnect`);
+    return data;
+  }
+
+  async enableRadiusCustomer(customerId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/customers/${customerId}/enable`);
+    return data;
+  }
+
+  async disableRadiusCustomer(customerId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/customers/${customerId}/disable`);
+    return data;
+  }
+
+  // RADIUS Sessions Actions
+  async disconnectRadiusSession(sessionId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/sessions/${sessionId}/disconnect`);
+    return data;
+  }
+
+  // RADIUS Plan Sync
+  async syncPlanToRadius(planId: string) {
+    const { data } = await this.client.post<ApiResponse>(`/radius/plans/${planId}/sync`);
+    return data;
+  }
+
+  async syncAllPlansToRadius() {
+    const { data } = await this.client.post<ApiResponse>('/radius/plans/sync-all');
+    return data;
+  }
+
   // Settings
   async getSettings() {
     const { data } = await this.client.get<ApiResponse<Record<string, unknown>>>('/settings');

@@ -24,6 +24,9 @@ import {
   FileBarChart,
   TrendingUp,
   HardDrive,
+  Radio,
+  Server,
+  Wifi,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -36,6 +39,11 @@ interface NavItem {
   badge?: number;
 }
 
+interface NavGroup {
+  name: string;
+  items: NavItem[];
+}
+
 const customerNav: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Usage', href: '/usage', icon: BarChart3 },
@@ -44,7 +52,7 @@ const customerNav: NavItem[] = [
   { name: 'Profile', href: '/profile', icon: User },
 ];
 
-const adminNav: NavItem[] = [
+const adminNav: (NavItem | NavGroup)[] = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Subscriptions', href: '/subscriptions', icon: CreditCard },
@@ -53,6 +61,15 @@ const adminNav: NavItem[] = [
   { name: 'Revenue', href: '/revenue', icon: Receipt },
   { name: 'Reports', href: '/reports', icon: FileBarChart },
   { name: 'Network', href: '/network', icon: Network },
+  {
+    name: 'RADIUS',
+    items: [
+      { name: 'NAS Devices', href: '/radius/nas', icon: Server },
+      { name: 'Users', href: '/radius/users', icon: Wifi },
+      { name: 'Sessions', href: '/radius/sessions', icon: Radio },
+      { name: 'Plan Sync', href: '/radius/plans', icon: Package },
+    ],
+  },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -128,18 +145,63 @@ function NavItems({
   pathname,
   onNavigate,
 }: {
-  items: NavItem[];
+  items: (NavItem | NavGroup)[];
   pathname: string;
   onNavigate?: () => void;
 }) {
   return (
     <ul className="space-y-1">
       {items.map((item) => {
-        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+        // Check if this is a NavGroup (has 'items' property)
+        if ('items' in item) {
+          const group = item as NavGroup;
+          const isGroupActive = group.items.some(
+            (sub) => pathname === sub.href || pathname.startsWith(sub.href + '/')
+          );
+          return (
+            <li key={group.name}>
+              <div className={clsx(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium mb-1',
+                isGroupActive
+                  ? 'text-primary-700 dark:text-primary-400'
+                  : 'text-gray-500 dark:text-gray-400'
+              )}>
+                <Radio className={clsx('h-4 w-4', isGroupActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500')} />
+                {group.name}
+              </div>
+              <ul className="space-y-1 ml-2">
+                {group.items.map((subItem) => {
+                  const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
+                  return (
+                    <li key={subItem.name}>
+                      <Link
+                        href={subItem.href}
+                        onClick={onNavigate}
+                        className={clsx(
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                          isSubActive
+                            ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
+                        )}
+                      >
+                        <subItem.icon className={clsx('h-4 w-4', isSubActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500')} />
+                        {subItem.name}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          );
+        }
+
+        // Regular NavItem
+        const item_ = item as NavItem;
+        const isActive = pathname === item_.href || pathname.startsWith(item_.href + '/');
         return (
-          <li key={item.name}>
+          <li key={item_.name}>
             <Link
-              href={item.href}
+              href={item_.href}
               onClick={onNavigate}
               className={clsx(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -148,11 +210,11 @@ function NavItems({
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
               )}
             >
-              <item.icon className={clsx('h-5 w-5', isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500')} />
-              {item.name}
-              {item.badge ? (
+              <item_.icon className={clsx('h-5 w-5', isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500')} />
+              {item_.name}
+              {item_.badge ? (
                 <span className="ml-auto rounded-full bg-primary-600 px-2 py-0.5 text-xs text-white">
-                  {item.badge}
+                  {item_.badge}
                 </span>
               ) : null}
             </Link>

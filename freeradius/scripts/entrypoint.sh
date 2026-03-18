@@ -34,7 +34,7 @@ done
 echo "✅ PostgreSQL is ready"
 
 echo "🔄 Creating FreeRADIUS tables..."
-psql -h "${RADIUS_DB_HOST}" -p "${RADIUS_DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" <<'EOSQL'
+psql -h "${RADIUS_DB_HOST}" -p "${RADIUS_DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" <<EOSQL
 
 CREATE TABLE IF NOT EXISTS nas (
     id          SERIAL PRIMARY KEY,

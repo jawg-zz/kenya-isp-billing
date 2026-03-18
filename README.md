@@ -278,6 +278,150 @@ isp-billing-system/
 └── README.md
 ```
 
+## RADIUS / MikroTik Integration
+
+### Architecture
+
+```
+┌──────────────────┐     WireGuard VPN      ┌─────────────────────┐
+│   MikroTik AP    │◄──── 10.8.0.2 ─────────►│  FreeRADIUS Server  │
+│  (192.168.88.x)  │     UDP 1812/1813       │  (10.8.0.1)         │
+│                  │                          │  Docker container   │
+│  WiFi Clients    │   Hotspot login page     │                     │
+│  ──────────►     │   ────► RADIUS Auth      │  PostgreSQL         │
+│  PPPoE Clients   │   ────► RADIUS Auth      │  (radcheck/radreply)│
+└──────────────────┘                          └─────────────────────┘
+```
+
+### How It Works
+
+1. **Customer connects** to WiFi → MikroTik presents a hotspot login page
+2. **Credentials sent** to FreeRADIUS via WireGuard VPN (encrypted tunnel)
+3. **FreeRADIUS checks** PostgreSQL for username/password and reply attributes
+4. **Speed limits returned** — MikroTik applies `Mikrotik-Rate-Limit` per user
+5. **Accounting data** flows back to FreeRADIUS (session time, bytes transferred)
+6. **CoA (Change of Authorization)** can dynamically adjust speeds or disconnect users
+
+### Setup Steps
+
+#### Step 1: Configure the Shared Secret
+
+In your `.env` file:
+
+```bash
+# Generate a strong secret
+openssl rand -hex 24
+
+# Add to .env
+RADIUS_SECRET=41b939a9b9971242939f6532df7302d06adfd474de69bd0f
+```
+
+#### Step 2: Update clients.conf
+
+The `freeradius/clients.conf` file already includes the MikroTik VPN peer (`10.8.0.2`) and the WireGuard subnet (`10.8.0.0/24`). The secret uses the `${RADIUS_SECRET}` env var — just make sure it matches your `.env`.
+
+#### Step 3: Start FreeRADIUS
+
+```bash
+docker compose up -d freeradius
+```
+
+The entrypoint script auto-creates all RADIUS tables (`radcheck`, `radreply`, `radgroupcheck`, `radgroupreply`, `radusergroup`, `radacct`, `radpostauth`) on first startup.
+
+#### Step 4: Add Test Users
+
+```bash
+# Option A: Run the seed SQL file
+docker compose exec postgres psql -U isp_billing -d isp_billing < radius-users-seed.sql
+
+# Option B: Individual INSERT
+docker compose exec postgres psql -U isp_billing -d isp_billing -c \
+  "INSERT INTO radcheck (username, attribute, op, value) VALUES ('demo', 'Cleartext-Password', ':=', 'demo123');
+   INSERT INTO radusergroup (username, groupname) VALUES ('demo', 'basic');"
+```
+
+#### Step 5: Configure the MikroTik Router
+
+SSH into the MikroTik and paste the contents of `mikrotik-radius-setup.rsc`:
+
+```
+# From your terminal:
+ssh admin@192.168.88.1
+# Then paste the script (update the shared secret first!)
+```
+
+Replace `CHANGE_THIS_TO_MATCH_YOUR_RADIUS_SECRET` with your actual `RADIUS_SECRET` value.
+
+#### Step 6: Test
+
+```bash
+# On the MikroTik terminal:
+/radius test username=testuser_basic password=Basic@2024! server=10.8.0.1
+
+# Should return: Access-Accept with Mikrotik-Rate-Limit=5M/2M
+```
+
+Connect a device to the WiFi network — you should see the hotspot login page.
+
+### Speed Plans
+
+| Plan | Download | Upload | Session Limit | Idle Timeout |
+|------|----------|--------|---------------|--------------|
+| **Basic** | 5 Mbps | 2 Mbps | 24 hours | 10 min |
+| **Premium** | 20 Mbps | 10 Mbps | 24 hours | 10 min |
+| **Enterprise** | 50 Mbps | 25 Mbps | Unlimited | 30 min |
+
+### RADIUS Attributes Used
+
+| Attribute | Purpose |
+|-----------|---------|
+| `Cleartext-Password` | User password (radcheck) |
+| `Mikrotik-Rate-Limit` | Per-user speed limit (`down/up` format) |
+| `Session-Timeout` | Max session duration (seconds) |
+| `Idle-Timeout` | Disconnect after inactivity (seconds) |
+| `WISPr-Bandwidth-Max-Down` | Hotspot portal display (bps) |
+| `WISPr-Bandwidth-Max-Up` | Hotspot portal display (bps) |
+
+### Accounting
+
+Session data is stored in the `radacct` table automatically. Key fields:
+
+- `username` — authenticated user
+- `nasipaddress` — MikroTik router IP
+- `acctsessiontime` — total session duration (seconds)
+- `acctinputoctets` / `acctoutputoctets` — bytes uploaded/downloaded
+- `framedipaddress` — IP assigned to the user
+- `acctterminatecause` — why the session ended (User-Request, Timeout, etc.)
+
+### CoA (Change of Authorization)
+
+FreeRADIUS can send CoA packets to the MikroTik to:
+
+- **Change speed** mid-session (upgrade/downgrade)
+- **Disconnect** a user immediately (suspend)
+- **Re-authorize** after payment (activate)
+
+Port **3799/udp** is already exposed in `docker-compose.yml` for CoA.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `freeradius/clients.conf` | NAS client definitions (MikroTik, WireGuard subnet) |
+| `freeradius/scripts/entrypoint.sh` | Auto-creates RADIUS tables on startup |
+| `radius-users-seed.sql` | Test users with speed plans |
+| `mikrotik-radius-setup.rsc` | MikroTik configuration script (paste into terminal) |
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| "No response from server" | Check WireGuard: `/interface wireguard peers print` |
+| "Authentication failed" | Verify shared secret matches on both sides |
+| No speed limits applied | Check `radreply`/`radgroupreply` has `Mikrotik-Rate-Limit` |
+| Hotspot page not showing | Verify hotspot profile and interface assignment |
+| CoA not working | Ensure port 3799/udp is open on the server firewall |
+
 ## Database Schema
 
 14 models covering the full system: `User`, `Customer`, `Plan`, `PlanPrice`, `Subscription`, `Invoice`, `Payment`, `RadiusConfig`, `RadiusSession`, `UsageRecord`, `Notification`, `SystemSetting`, `AuditLog`, `RefreshToken`.
