@@ -104,37 +104,38 @@ enum SessionStatus {
 
 // User model
 model User {
-  id                String          @id @default(uuid())
-  email             String          @unique
-  password          String
-  role              UserRole        @default(CUSTOMER)
-  firstName         String
-  lastName          String
-  phone             String          @unique
-  phoneVerified     Boolean         @default(false)
-  emailVerified     Boolean         @default(false)
-  accountStatus     AccountStatus   @default(PENDING_VERIFICATION)
-  networkProvider   NetworkProvider?
-  preferredPayment  PaymentMethod?
-  addressLine1      String?
-  addressLine2      String?
-  city              String?
-  county            String?         // Kenyan county
-  postalCode        String?
-  idNumber          String?         // Kenyan national ID
-  kraPin            String?         // KRA PIN for tax
-  metadata          Json?
-  lastLoginAt       DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id               String           @id @default(uuid())
+  email            String           @unique
+  password         String
+  role             UserRole         @default(CUSTOMER)
+  firstName        String
+  lastName         String
+  phone            String           @unique
+  phoneVerified    Boolean          @default(false)
+  emailVerified    Boolean          @default(false)
+  accountStatus    AccountStatus    @default(PENDING_VERIFICATION)
+  networkProvider  NetworkProvider?
+  preferredPayment PaymentMethod?
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  county           String? // Kenyan county
+  postalCode       String?
+  idNumber         String? // Kenyan national ID
+  kraPin           String? // KRA PIN for tax
+  metadata         Json?
+  lastLoginAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   // Relations
-  customer          Customer?
-  payments          Payment[]
-  notifications     Notification[]
-  sessions          RadiusSession[]
-  usageRecords      UsageRecord[]
-  refreshTokens     RefreshToken[]
+  customer      Customer?
+  subscriptions Subscription[]
+  payments      Payment[]
+  notifications Notification[]
+  sessions      RadiusSession[]
+  usageRecords  UsageRecord[]
+  refreshTokens RefreshToken[]
 
   @@index([phone])
   @@index([county])
@@ -157,24 +158,24 @@ model RefreshToken {
 
 // Customer profile (extended user info for customers)
 model Customer {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customerCode    String   @unique
-  accountNumber   String   @unique
-  balance         Decimal  @default(0)
-  creditLimit     Decimal  @default(0)
-  notes           String?
-  metadata        Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerCode  String   @unique
+  accountNumber String   @unique
+  balance       Decimal  @default(0)
+  creditLimit   Decimal  @default(0)
+  notes         String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
-  subscriptions   Subscription[]
-  invoices        Invoice[]
-  payments        Payment[]
-  usageRecords    UsageRecord[]
-  radiusConfig    RadiusConfig?
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  payments      Payment[]
+  usageRecords  UsageRecord[]
+  radiusConfig  RadiusConfig?
 
   @@index([customerCode])
   @@index([accountNumber])
@@ -183,32 +184,32 @@ model Customer {
 
 // Data/Service plans
 model Plan {
-  id                String          @id @default(uuid())
-  name              String
-  description       String?
-  code              String          @unique
-  type              SubscriptionType
-  dataType          DataType        @default(DATA)
-  price             Decimal
-  currency          String          @default("KES")
-  dataAllowance     BigInt?         // In bytes, null for unlimited
-  voiceMinutes      Int?            // Voice minutes included
-  smsAllowance      Int?            // SMS included
-  speedLimit        Int?            // Speed in Mbps, null for unlimited
-  billingCycle      BillingCycle?
-  validityDays      Int             @default(30) // For prepaid bundles
-  fupThreshold      BigInt?         // Fair usage policy threshold in bytes
-  fupSpeedLimit     Int?            // Speed after FUP in Mbps
-  isActive          Boolean         @default(true)
-  isFeatured        Boolean         @default(false)
-  sortOrder         Int             @default(0)
-  metadata          Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id            String           @id @default(uuid())
+  name          String
+  description   String?
+  code          String           @unique
+  type          SubscriptionType
+  dataType      DataType         @default(DATA)
+  price         Decimal
+  currency      String           @default("KES")
+  dataAllowance BigInt? // In bytes, null for unlimited
+  voiceMinutes  Int? // Voice minutes included
+  smsAllowance  Int? // SMS included
+  speedLimit    Int? // Speed in Mbps, null for unlimited
+  billingCycle  BillingCycle?
+  validityDays  Int              @default(30) // For prepaid bundles
+  fupThreshold  BigInt? // Fair usage policy threshold in bytes
+  fupSpeedLimit Int? // Speed after FUP in Mbps
+  isActive      Boolean          @default(true)
+  isFeatured    Boolean          @default(false)
+  sortOrder     Int              @default(0)
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   // Relations
-  subscriptions     Subscription[]
-  planPrices        PlanPrice[]
+  subscriptions Subscription[]
+  planPrices    PlanPrice[]
 
   @@index([code])
   @@index([type])
@@ -218,15 +219,15 @@ model Plan {
 
 // Plan pricing for different billing cycles
 model PlanPrice {
-  id          String      @id @default(uuid())
-  planId      String
-  plan        Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  id           String       @id @default(uuid())
+  planId       String
+  plan         Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
   billingCycle BillingCycle
-  price       Decimal
-  currency    String      @default("KES")
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  price        Decimal
+  currency     String       @default("KES")
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@unique([planId, billingCycle])
   @@map("plan_prices")
@@ -234,29 +235,31 @@ model PlanPrice {
 
 // Customer subscriptions
 model Subscription {
-  id                String          @id @default(uuid())
-  customerId        String
-  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  planId            String
-  plan              Plan            @relation(fields: [planId], references: [id])
-  status            AccountStatus   @default(ACTIVE)
-  type              SubscriptionType
-  dataUsed          BigInt          @default(0)
-  dataRemaining     BigInt?
-  voiceMinutesUsed  Int             @default(0)
-  smsUsed           Int             @default(0)
-  startDate         DateTime
-  endDate           DateTime
-  autoRenew         Boolean         @default(true)
-  metadata          Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id               String           @id @default(uuid())
+  customerId       String
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan             @relation(fields: [planId], references: [id])
+  status           AccountStatus    @default(ACTIVE)
+  type             SubscriptionType
+  dataUsed         BigInt           @default(0)
+  dataRemaining    BigInt?
+  voiceMinutesUsed Int              @default(0)
+  smsUsed          Int              @default(0)
+  startDate        DateTime
+  endDate          DateTime
+  autoRenew        Boolean          @default(true)
+  metadata         Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   // Relations
-  payments          Payment[]
-  invoices          Invoice[]
-  sessions          RadiusSession[]
-  usageRecords      UsageRecord[]
+  payments     Payment[]
+  invoices     Invoice[]
+  sessions     RadiusSession[]
+  usageRecords UsageRecord[]
+  User         User?           @relation(fields: [userId], references: [id])
+  userId       String?
 
   @@index([customerId])
   @@index([status])
@@ -266,28 +269,28 @@ model Subscription {
 
 // Invoices
 model Invoice {
-  id                String          @id @default(uuid())
-  invoiceNumber     String          @unique
-  customerId        String
-  customer          Customer        @relation(fields: [customerId], references: [id])
-  subscriptionId    String?
-  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
-  status            InvoiceStatus   @default(PENDING)
-  subtotal          Decimal
-  taxRate           Decimal         @default(0.16)
-  taxAmount         Decimal
-  totalAmount       Decimal
-  currency          String          @default("KES")
-  dueDate           DateTime
-  paidAt            DateTime?
-  cancelledAt       DateTime?
-  notes             String?
-  metadata          Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id             String        @id @default(uuid())
+  invoiceNumber  String        @unique
+  customerId     String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  status         InvoiceStatus @default(PENDING)
+  subtotal       Decimal
+  taxRate        Decimal       @default(0.16)
+  taxAmount      Decimal
+  totalAmount    Decimal
+  currency       String        @default("KES")
+  dueDate        DateTime
+  paidAt         DateTime?
+  cancelledAt    DateTime?
+  notes          String?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   // Relations
-  payments          Payment[]
+  payments Payment[]
 
   @@index([customerId])
   @@index([status])
@@ -298,29 +301,29 @@ model Invoice {
 
 // Payments
 model Payment {
-  id                String          @id @default(uuid())
-  paymentNumber     String          @unique
+  id                String        @id @default(uuid())
+  paymentNumber     String        @unique
   customerId        String
-  customer          Customer        @relation(fields: [customerId], references: [id])
+  customer          Customer      @relation(fields: [customerId], references: [id])
   invoiceId         String?
-  invoice           Invoice?        @relation(fields: [invoiceId], references: [id])
+  invoice           Invoice?      @relation(fields: [invoiceId], references: [id])
   subscriptionId    String?
-  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
   userId            String?
-  user              User?           @relation(fields: [userId], references: [id])
+  user              User?         @relation(fields: [userId], references: [id])
   amount            Decimal
-  currency          String          @default("KES")
+  currency          String        @default("KES")
   method            PaymentMethod
-  status            PaymentStatus   @default(PENDING)
-  reference         String?         // External reference from payment provider
-  checkoutRequestId String?         // M-Pesa checkout request ID
-  merchantRequestId String?         // M-Pesa merchant request ID
-  resultCode        String?         // Provider result code
-  resultDesc        String?         // Provider result description
+  status            PaymentStatus @default(PENDING)
+  reference         String? // External reference from payment provider
+  checkoutRequestId String? // M-Pesa checkout request ID
+  merchantRequestId String? // M-Pesa merchant request ID
+  resultCode        String? // Provider result code
+  resultDesc        String? // Provider result description
   metadata          Json?
   processedAt       DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([customerId])
   @@index([status])
@@ -332,20 +335,41 @@ model Payment {
 
 // RADIUS user configuration
 model RadiusConfig {
-  id            String    @id @default(uuid())
-  customerId    String    @unique
-  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  username      String    @unique
-  password      String
-  nasIpAddress  String?
-  nasPortId     String?
-  poolName      String?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String   @id @default(uuid())
+  customerId   String   @unique
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  username     String   @unique
+  password     String
+  nasIpAddress String?
+  nasPortId    String?
+  poolName     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([username])
   @@map("radius_configs")
+}
+
+// RADIUS NAS (Network Access Server) devices
+model Nas {
+  id          String   @id @default(uuid())
+  nasname     String
+  shortname   String?
+  type        String   @default("other")
+  ports       Int?
+  secret      String
+  server      String?
+  description String?  @default("RADIUS Client")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions RadiusSession[]
+
+  @@index([nasname])
+  @@index([isActive])
+  @@map("nas")
 }
 
 // RADIUS sessions
@@ -355,6 +379,8 @@ model RadiusSession {
   user            User          @relation(fields: [userId], references: [id])
   subscriptionId  String?
   subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  nasId           String?
+  nas             Nas?          @relation(fields: [nasId], references: [id])
   sessionId       String        @unique
   nasIpAddress    String
   nasPortId       String?
@@ -376,28 +402,29 @@ model RadiusSession {
   @@index([sessionId])
   @@index([status])
   @@index([nasIpAddress])
+  @@index([nasId])
   @@map("radius_sessions")
 }
 
 // Usage records for billing and monitoring
 model UsageRecord {
-  id              String    @id @default(uuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id])
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id])
-  subscriptionId  String?
-  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
-  sessionId       String?
-  timestamp       DateTime  @default(now())
-  inputOctets     BigInt    @default(0)
-  outputOctets    BigInt    @default(0)
-  totalOctets     BigInt    @default(0)
-  inputPackets    BigInt    @default(0)
-  outputPackets   BigInt    @default(0)
-  nasIpAddress    String?
-  ipAddress       String?
-  metadata        Json?
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  customerId     String
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  sessionId      String?
+  timestamp      DateTime      @default(now())
+  inputOctets    BigInt        @default(0)
+  outputOctets   BigInt        @default(0)
+  totalOctets    BigInt        @default(0)
+  inputPackets   BigInt        @default(0)
+  outputPackets  BigInt        @default(0)
+  nasIpAddress   String?
+  ipAddress      String?
+  metadata       Json?
 
   @@index([userId])
   @@index([customerId])
@@ -408,17 +435,17 @@ model UsageRecord {
 
 // Notifications
 model Notification {
-  id          String           @id @default(uuid())
-  userId      String
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        NotificationType
-  title       String
-  message     String
-  channel     String           @default("in_app") // in_app, sms, email
-  sentVia     String?          // sms, email, push
-  readAt      DateTime?
-  metadata    Json?
-  createdAt   DateTime         @default(now())
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  channel   String           @default("in_app") // in_app, sms, email
+  sentVia   String? // sms, email, push
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime         @default(now())
 
   @@index([userId])
   @@index([type])
@@ -442,51 +469,19 @@ model SystemSetting {
 
 // Audit log
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String?
-  action      String
-  entityType  String
-  entityId    String?
-  oldValues   Json?
-  newValues   Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
   @@index([userId])
   @@index([entityType])
   @@index([createdAt])
   @@map("audit_logs")
 }
-
-// Hotspot pay-as-you-go purchases
-model HotspotPurchase {
-  id                String    @id @default(uuid())
-  reference         String    @unique
-  phone             String
-  packageId         String
-  packageName       String
-  amount            Int
-  speed             Int       // Mbps
-  dataAllowance     Int       // MB
-  durationHours     Int
-  macAddress        String?
-  clientIp          String?
-  status            String    @default("PENDING")  // PENDING, PAID, FAILED, EXPIRED
-  mpesaReceipt      String?
-  merchantRequestId String?
-  checkoutRequestId String?
-  radiusUsername    String?
-  radiusPassword    String?   // Temporary — for display, consider removing after first use
-  paidAt            DateTime?
-  expiresAt         DateTime
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([reference])
-  @@index([phone])
-  @@index([status])
-  @@index([checkoutRequestId])
-  @@map("hotspot_purchases")
-}
-
