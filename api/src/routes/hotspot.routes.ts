@@ -51,7 +51,7 @@ router.post('/purchase', async (req: Request, res: Response) => {
 // GET /api/v1/hotspot/status/:reference — poll purchase status
 router.get('/status/:reference', async (req: Request, res: Response) => {
   try {
-    const { reference } = req.params;
+    const reference = req.params.reference as string;
     const status = await hotspotService.getPurchaseStatus(reference);
     res.json(status);
   } catch (error: any) {
