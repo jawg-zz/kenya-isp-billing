@@ -185,22 +185,20 @@ export default function SettingsPage() {
   async function loadNetworkStatus() {
     try {
       setNetworkStatusLoading(true);
-      // Try to fetch NAS devices count
-      const nasRes = await api.get('/api/radius/nas');
+      const nasRes = await api.getRadiusNas();
       if (nasRes.success && nasRes.data) {
         const nasData = nasRes.data as any;
-        setConnectedNasCount(Array.isArray(nasData) ? nasData.length : (nasData.devices?.length ?? nasData.total ?? 0));
+        setConnectedNasCount(nasData.nas?.length ?? nasData.total ?? 0);
         setRadiusStatus('online');
       }
     } catch {
       setRadiusStatus('offline');
     }
     try {
-      // Try to fetch active sessions count
-      const sessionsRes = await api.get('/api/radius/sessions');
+      const sessionsRes = await api.getRadiusSessions({ status: 'active', limit: 1 });
       if (sessionsRes.success && sessionsRes.data) {
         const sessionsData = sessionsRes.data as any;
-        setActiveSessionsCount(Array.isArray(sessionsData) ? sessionsData.length : (sessionsData.sessions?.length ?? sessionsData.total ?? 0));
+        setActiveSessionsCount(sessionsData.meta?.total ?? 0);
       }
     } catch {
       // keep default
