@@ -14,8 +14,8 @@ export const mpesaSTKPushSchema = z.object({
     .positive('Amount must be positive')
     .min(1, 'Minimum amount is KES 1')
     .max(150000, 'Maximum amount is KES 150,000'),
-  accountReference: trimmedString(1, 20, 'Account reference'),
-  transactionDesc: trimmedString(1, 100, 'Transaction description'),
+  accountReference: trimmedString(1, 20, 'Account reference').optional(),
+  transactionDesc: trimmedString(1, 100, 'Transaction description').optional(),
 });
 
 // Airtel Money payment request
@@ -53,7 +53,7 @@ export const paymentFilterSchema = z.object({
     .enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED', 'TIMEOUT'])
     .optional(),
   method: z
-    .enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
+    .enum(['MPESA', 'AIRTEL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD', 'BALANCE'])
     .optional(),
   customerId: uuidSchema.optional(),
   startDate: z.string().datetime().optional(),
@@ -103,7 +103,7 @@ export const recordManualPaymentSchema = z.object({
     .number()
     .positive('Amount must be positive')
     .min(1, 'Minimum amount is KES 1'),
-  method: z.enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD']),
+  method: z.enum(['MPESA', 'AIRTEL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD', 'BALANCE']),
   reference: trimmedString(1, 100, 'Reference'),
   notes: optionalTrimmedString(500),
 });

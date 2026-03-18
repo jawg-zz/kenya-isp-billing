@@ -340,7 +340,7 @@ router.post('/verify-phone/send', authenticate, authController.sendPhoneVerifica
  *       400:
  *         description: Invalid code
  */
-router.post('/verify-phone', authController.verifyPhone);
+router.post('/verify-phone', validate(verifyPhoneSchema), authController.verifyPhone);
 
 /**
  * @swagger

@@ -37,6 +37,7 @@ interface UserInfo {
   speedLimit: number | null;
   fupSpeedLimit: number | null;
   subscriptionActive: boolean;
+  accountStatus: string;
 }
 
 class RadiusService {
@@ -167,7 +168,10 @@ class RadiusService {
     // Check cache first
     const cachedInfo = await cache.get<UserInfo>(`radius:user:${request.username}`);
     
-    let userInfo: UserInfo | null = cachedInfo;
+    let userInfo: UserInfo | null = cachedInfo ? {
+      ...cachedInfo,
+      accountStatus: cachedInfo.accountStatus ?? 'INACTIVE',
+    } as UserInfo : null;
     
     if (!userInfo) {
       // Fetch from database
@@ -176,6 +180,9 @@ class RadiusService {
         include: {
           customer: {
             include: {
+              user: {
+                select: { accountStatus: true },
+              },
               subscriptions: {
                 where: { status: 'ACTIVE' },
                 include: { plan: true },
@@ -202,10 +209,11 @@ class RadiusService {
         speedLimit: subscription?.plan.speedLimit ?? null,
         fupSpeedLimit: subscription?.plan.fupSpeedLimit ?? null,
         subscriptionActive: !!subscription && subscription.status === 'ACTIVE',
+        accountStatus: radiusConfig.customer.user?.accountStatus ?? 'INACTIVE',
       };
 
-      // Cache for 5 minutes
-      await cache.set(`radius:user:${request.username}`, userInfo, 300);
+      // Cache for 60 seconds to avoid stale auth decisions when subscription status changes
+      await cache.set(`radius:user:${request.username}`, userInfo, 60);
     }
 
     // Verify password (compare against bcrypt hash)
@@ -218,6 +226,12 @@ class RadiusService {
     // Check subscription status
     if (!userInfo.subscriptionActive) {
       logger.warn(`RADIUS auth failed: no active subscription for ${request.username}`);
+      return { accept: false };
+    }
+
+    // Check account status
+    if (userInfo.accountStatus === 'SUSPENDED' || userInfo.accountStatus === 'TERMINATED' || userInfo.accountStatus === 'INACTIVE') {
+      logger.warn(`RADIUS auth failed: account is ${userInfo.accountStatus} for ${request.username}`);
       return { accept: false };
     }
 
@@ -299,7 +313,7 @@ class RadiusService {
 
     if (session) {
       // Update existing session
-      await prisma.radiusSession.update({
+      session = await prisma.radiusSession.update({
         where: { id: session.id },
         data: {
           inputOctets: request.inputOctets,
@@ -335,28 +349,58 @@ class RadiusService {
       });
     }
 
-    // Compute delta octets since last update for this session
+    // Compute delta octets since last update for this session.
+    // Redis cache can expire (TTL 24h) or be lost on server restart.
+    // Fall back to DB-stored cumulative values on cache miss.
     const cacheKey = `radius:session:${request.sessionId}:cumulative`;
     const previous = await cache.get<{ inputOctets: number; outputOctets: number; inputPackets: number; outputPackets: number }>(cacheKey);
+    let previousOctets = previous;
+
+    if (!previousOctets && session) {
+      // Cache miss — fall back to DB-persisted cumulative octets
+      previousOctets = {
+        inputOctets: Number(session.lastCumulativeInputOctets) || 0,
+        outputOctets: Number(session.lastCumulativeOutputOctets) || 0,
+        inputPackets: Number(session.lastCumulativeInputPackets) || 0,
+        outputPackets: Number(session.lastCumulativeOutputPackets) || 0,
+      };
+    }
+
     let deltaInputOctets = request.inputOctets;
     let deltaOutputOctets = request.outputOctets;
     let deltaInputPackets = request.inputPackets;
     let deltaOutputPackets = request.outputPackets;
 
-    if (previous) {
-      deltaInputOctets = Math.max(0, request.inputOctets - previous.inputOctets);
-      deltaOutputOctets = Math.max(0, request.outputOctets - previous.outputOctets);
-      deltaInputPackets = Math.max(0, request.inputPackets - previous.inputPackets);
-      deltaOutputPackets = Math.max(0, request.outputPackets - previous.outputPackets);
+    if (previousOctets) {
+      deltaInputOctets = Math.max(0, request.inputOctets - previousOctets.inputOctets);
+      deltaOutputOctets = Math.max(0, request.outputOctets - previousOctets.outputOctets);
+      deltaInputPackets = Math.max(0, request.inputPackets - previousOctets.inputPackets);
+      deltaOutputPackets = Math.max(0, request.outputPackets - previousOctets.outputPackets);
     }
 
-    // Store current cumulative for next delta
-    await cache.set(cacheKey, {
+    // Persist current cumulative values to both Redis and DB for resilience.
+    // Redis is fast for the hot path; DB is the durable fallback.
+    const cumulativeData = {
       inputOctets: request.inputOctets,
       outputOctets: request.outputOctets,
       inputPackets: request.inputPackets,
       outputPackets: request.outputPackets,
-    }, 3600); // expire after 1 hour (should be longer for long sessions)
+    };
+
+    await Promise.all([
+      // Redis cache (fast lookups, 24h TTL)
+      cache.set(cacheKey, cumulativeData, 86400),
+      // Database persistence (survives Redis expiry and server restarts)
+      prisma.radiusSession.update({
+        where: { id: session!.id },
+        data: {
+          lastCumulativeInputOctets: request.inputOctets,
+          lastCumulativeOutputOctets: request.outputOctets,
+          lastCumulativeInputPackets: request.inputPackets,
+          lastCumulativeOutputPackets: request.outputPackets,
+        },
+      }),
+    ]);
 
     // Update usage record with delta
     await this.updateUsageRecord(
@@ -447,8 +491,13 @@ class RadiusService {
       },
     });
 
-    // Invalidate cache
-    await cache.del(`radius:user:cust_${subscription.customerId}`);
+    // Invalidate RADIUS user cache so auth picks up new data remaining
+    const radiusConfig = await prisma.radiusConfig.findUnique({
+      where: { customerId: subscription.customerId },
+    });
+    if (radiusConfig) {
+      await cache.del(`radius:user:${radiusConfig.username}`);
+    }
   }
 
   // Check Fair Usage Policy threshold
@@ -630,6 +679,16 @@ class RadiusService {
     await cache.del(`radius:user:${username}`);
 
     logger.info(`Disconnected user ${username} (${activeSessions.length} sessions)`);
+  }
+
+  // Invalidate RADIUS cache for a customer (call when subscription status changes)
+  async invalidateCacheForCustomer(customerId: string): Promise<void> {
+    const radiusConfig = await prisma.radiusConfig.findUnique({
+      where: { customerId },
+    });
+    if (radiusConfig) {
+      await cache.del(`radius:user:${radiusConfig.username}`);
+    }
   }
 
   // Get active sessions for customer

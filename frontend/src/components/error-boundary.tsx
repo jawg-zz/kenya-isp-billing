@@ -58,9 +58,11 @@ export class ErrorBoundary extends Component<Props, State> {
                   Something went wrong
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  An unexpected error occurred in this section. You can try again or navigate to a different page.
+                  {process.env.NODE_ENV === 'development'
+                    ? 'An unexpected error occurred in this section. You can try again or navigate to a different page.'
+                    : 'We encountered an unexpected error. Please try again or contact support if the issue persists.'}
                 </p>
-                {this.state.error && (
+                {this.state.error && process.env.NODE_ENV === 'development' && (
                   <details className="mb-4 text-left">
                     <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
                       Error details

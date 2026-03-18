@@ -2,8 +2,10 @@ import { Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
 import { smsService } from '../services/sms.service';
 import { radiusService } from '../services/radius.service';
+import { mpesaService } from '../services/mpesa.service';
 import { AuthenticatedRequest, ApiResponse, NotFoundError } from '../types';
 import { logger } from '../config/logger';
+import crypto from 'crypto';
 
 class SubscriptionController {
   // Get customer's subscriptions
@@ -115,11 +117,11 @@ class SubscriptionController {
         throw new NotFoundError('Plan not found or inactive');
       }
 
-      // Check for existing active subscription
+      // Check for existing active or pending subscription
       const existingSubscription = await prisma.subscription.findFirst({
         where: {
           customerId: customer.id,
-          status: 'ACTIVE',
+          status: { in: ['ACTIVE', 'PENDING_PAYMENT'] },
         },
       });
 
@@ -136,55 +138,184 @@ class SubscriptionController {
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + plan.validityDays);
 
-      // Create subscription
-      const subscription = await prisma.subscription.create({
-        data: {
-          customerId: customer.id,
-          planId,
-          type: plan.type,
-          status: 'ACTIVE',
-          startDate,
-          endDate,
-          autoRenew,
-          dataRemaining: plan.dataAllowance,
-        },
-        include: {
-          plan: true,
-        },
-      });
+      // Check if customer has sufficient balance to activate immediately
+      const planPrice = plan.price;
+      const hasSufficientBalance = customer.balance.gte(planPrice);
 
-      // Create RADIUS user if not exists
-      await radiusService.createRadiusUser(customer.id);
+      let subscription;
 
-      // Send SMS notification
-      if (customer.user.phone) {
-        await smsService.sendSubscriptionActivation(
-          customer.user.phone,
-          plan.name,
-          endDate.toLocaleDateString('en-KE')
-        );
+      if (hasSufficientBalance) {
+        // Deduct balance and activate immediately
+        await prisma.$transaction(async (tx) => {
+          // Deduct from balance
+          await tx.customer.update({
+            where: { id: customer.id },
+            data: { balance: { decrement: planPrice } },
+          });
+
+          // Create subscription as ACTIVE
+          subscription = await tx.subscription.create({
+            data: {
+              customerId: customer.id,
+              planId,
+              type: plan.type,
+              status: 'ACTIVE',
+              startDate,
+              endDate,
+              autoRenew,
+              dataRemaining: plan.dataAllowance,
+            },
+            include: { plan: true },
+          });
+
+          // Create payment record
+          const paymentNumber = `BAL-${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+          await tx.payment.create({
+            data: {
+              paymentNumber,
+              customerId: customer.id,
+              subscriptionId: subscription.id,
+              userId: req.user!.id,
+              amount: planPrice,
+              currency: 'KES',
+              method: 'BALANCE',
+              status: 'COMPLETED',
+              processedAt: new Date(),
+              reference: `SUB-${subscription.id}`,
+              metadata: {
+                subscriptionId: subscription.id,
+                planId: plan.id,
+                type: 'SUBSCRIPTION_PURCHASE',
+                balanceDeduction: true,
+              },
+            },
+          });
+        });
+
+        // Create RADIUS user
+        await radiusService.createRadiusUser(customer.id);
+
+        // Create in-app notification (matches M-Pesa callback path)
+        await prisma.notification.create({
+          data: {
+            userId: customer.userId,
+            type: 'SUBSCRIPTION_ACTIVATED',
+            title: 'Subscription Activated',
+            message: `Your ${plan.name} subscription has been activated. Valid until ${endDate.toLocaleDateString('en-KE')}`,
+            channel: 'in_app',
+          },
+        });
+
+        // Send SMS notification
+        if (customer.user.phone) {
+          await smsService.sendSubscriptionActivation(
+            customer.user.phone,
+            plan.name,
+            endDate.toLocaleDateString('en-KE')
+          );
+        }
+
+        logger.info(`Subscription created (balance-paid): ${subscription.id} for customer ${customer.id}`);
+
+        const response: ApiResponse = {
+          success: true,
+          message: 'Subscription activated successfully',
+          data: { subscription },
+        };
+        res.status(201).json(response);
+      } else {
+        // Insufficient balance — create as PENDING_PAYMENT and initiate M-Pesa STK Push
+        subscription = await prisma.subscription.create({
+          data: {
+            customerId: customer.id,
+            planId,
+            type: plan.type,
+            status: 'PENDING_PAYMENT',
+            startDate,
+            endDate,
+            autoRenew,
+            dataRemaining: plan.dataAllowance,
+          },
+          include: { plan: true },
+        });
+
+        // Create pending payment record
+        const paymentNumber = `MP-${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        const payment = await prisma.payment.create({
+          data: {
+            paymentNumber,
+            customerId: customer.id,
+            subscriptionId: subscription.id,
+            userId: req.user!.id,
+            amount: Number(planPrice),
+            currency: 'KES',
+            method: 'MPESA',
+            status: 'PENDING',
+            metadata: {
+              subscriptionId: subscription.id,
+              planId: plan.id,
+              type: 'SUBSCRIPTION_PURCHASE',
+            },
+          },
+        });
+
+        // Initiate M-Pesa STK Push
+        let mpesaResult;
+        try {
+          mpesaResult = await mpesaService.initiateSTKPush({
+            phoneNumber: customer.user.phone,
+            amount: Number(planPrice),
+            accountReference: paymentNumber,
+            transactionDesc: `Subscription: ${plan.name}`,
+          });
+
+          // Update payment with M-Pesa request IDs
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              merchantRequestId: mpesaResult.MerchantRequestID,
+              checkoutRequestId: mpesaResult.CheckoutRequestID,
+              metadata: {
+                ...((payment.metadata as object) || {}),
+                merchantRequestId: mpesaResult.MerchantRequestID,
+                checkoutRequestId: mpesaResult.CheckoutRequestID,
+              },
+            },
+          });
+        } catch (mpesaError) {
+          logger.error('M-Pesa STK Push failed for subscription:', mpesaError);
+          // Update payment as failed
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: 'FAILED' },
+          });
+
+          // Update subscription as failed
+          await prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: 'TERMINATED' },
+          });
+
+          res.status(500).json({
+            success: false,
+            message: 'Failed to initiate M-Pesa payment. Please try again.',
+          });
+          return;
+        }
+
+        logger.info(`Subscription created (pending payment): ${subscription.id} for customer ${customer.id}`);
+
+        const response: ApiResponse = {
+          success: true,
+          message: 'Subscription pending payment. Please check your phone for the M-Pesa prompt.',
+          data: {
+            subscription,
+            checkoutRequestId: mpesaResult!.CheckoutRequestID,
+            paymentId: payment.id,
+          },
+        };
+        res.status(201).json(response);
       }
-
-      // Create notification
-      await prisma.notification.create({
-        data: {
-          userId: req.user!.id,
-          type: 'SUBSCRIPTION_ACTIVATED',
-          title: 'Subscription Activated',
-          message: `Your ${plan.name} subscription has been activated. Valid until ${endDate.toLocaleDateString('en-KE')}.`,
-          channel: 'in_app',
-        },
-      });
-
-      logger.info(`Subscription created: ${subscription.id} for customer ${customer.id}`);
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Subscription activated successfully',
-        data: { subscription },
-      };
-
-      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
@@ -210,6 +341,49 @@ class SubscriptionController {
         throw new NotFoundError('Subscription not found');
       }
 
+      // Check customer balance before renewing
+      const planPrice = subscription.plan.price;
+      const customerBalance = subscription.customer.balance;
+
+      if (customerBalance.lessThan(planPrice)) {
+        res.status(400).json({
+          success: false,
+          message: 'Insufficient balance',
+        });
+        return;
+      }
+
+      // Deduct plan price from customer balance
+      const updatedCustomer = await prisma.customer.update({
+        where: { id: subscription.customerId },
+        data: {
+          balance: { decrement: planPrice },
+        },
+      });
+
+      // Create payment record for the deduction
+      const paymentNumber = `BAL-${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      await prisma.payment.create({
+        data: {
+          paymentNumber,
+          customerId: subscription.customerId,
+          amount: planPrice,
+          currency: 'KES',
+          method: 'BALANCE',
+          status: 'COMPLETED',
+          processedAt: new Date(),
+          reference: `RENEW-${subscriptionId}`,
+          metadata: {
+            subscriptionId: subscription.id,
+            planId: subscription.planId,
+            type: 'SUBSCRIPTION_RENEWAL',
+            balanceDeduction: true,
+            balanceBefore: customerBalance,
+            balanceAfter: updatedCustomer.balance,
+          },
+        },
+      });
+
       // Calculate new dates
       const startDate = new Date();
       const endDate = new Date();
@@ -231,6 +405,9 @@ class SubscriptionController {
           plan: true,
         },
       });
+
+      // Invalidate RADIUS cache so auth picks up renewed subscription
+      await radiusService.invalidateCacheForCustomer(subscription.customerId);
 
       // Send SMS notification
       if (subscription.customer.user.phone) {

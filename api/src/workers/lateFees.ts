@@ -75,9 +75,10 @@ export async function runLateFees(): Promise<{
         // Calculate weeks overdue (rounded up)
         const weeksOverdue = Math.ceil(daysOverdue / 7);
 
-        // Calculate late fee
-        const invoiceAmount = Number(invoice.totalAmount);
-        const lateFeeAmount = invoiceAmount * (lateFeePercentage / 100) * weeksOverdue;
+        // Calculate late fee on the base amount (subtotal + tax), NOT totalAmount.
+        // Using totalAmount would compound late fees on top of previous late fees.
+        const baseAmount = Number(invoice.subtotal) + Number(invoice.taxAmount);
+        const lateFeeAmount = baseAmount * (lateFeePercentage / 100) * weeksOverdue;
 
         if (lateFeeAmount <= 0) {
           skipped++;
@@ -98,7 +99,9 @@ export async function runLateFees(): Promise<{
         }
 
         // Apply late fee: update invoice total and mark as OVERDUE
-        const newTotal = invoiceAmount + lateFeeAmount;
+        // Total = baseAmount (subtotal + tax) + all-time accumulated late fees
+        const totalLateFeesApplied = ((existingLateFee?.totalApplied as number) || 0) + lateFeeAmount;
+        const newTotal = baseAmount + totalLateFeesApplied;
 
         await prisma.invoice.update({
           where: { id: invoice.id },
@@ -107,11 +110,15 @@ export async function runLateFees(): Promise<{
             totalAmount: newTotal,
             metadata: {
               ...metadata,
+              // Store original base amount so future runs don't need to guess
+              originalSubtotal: metadata.originalSubtotal ?? Number(invoice.subtotal),
+              originalTaxAmount: metadata.originalTaxAmount ?? Number(invoice.taxAmount),
               lateFee: {
                 amount: lateFeeAmount,
-                totalApplied: ((existingLateFee?.totalApplied as number) || 0) + lateFeeAmount,
+                totalApplied: totalLateFeesApplied,
                 percentage: lateFeePercentage,
                 weeksOverdue,
+                baseAmount,
                 appliedAt: now.toISOString(),
                 history: [
                   ...((existingLateFee?.history as Array<{

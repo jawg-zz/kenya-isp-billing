@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
+import filterXSS from 'xss';
 import { ValidationError } from '../types';
 
 /**
@@ -33,7 +34,8 @@ export const validate =
   };
 
 /**
- * Sanitize input: trim whitespace, strip XSS vectors.
+ * Sanitize input using the xss library to strip XSS vectors.
+ * Handles encoded payloads, data: URIs, style-based attacks, etc.
  * Applied to body and query.
  */
 export const sanitize = (
@@ -43,11 +45,7 @@ export const sanitize = (
 ): void => {
   const sanitizeString = (str: string): string => {
     if (typeof str !== 'string') return str;
-    return str
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+=/gi, '')
-      .trim();
+    return filterXSS(str.trim());
   };
 
   const sanitizeObject = (obj: any): any => {

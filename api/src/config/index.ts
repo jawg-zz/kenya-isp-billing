@@ -58,6 +58,9 @@ export const config = {
     host: process.env.RADIUS_HOST || '127.0.0.1',
     port: parseInt(process.env.RADIUS_PORT || '1812', 10),
     accountingPort: parseInt(process.env.RADIUS_ACCOUNTING_PORT || '1813', 10),
+    allowedIps: process.env.RADIUS_ALLOWED_IPS
+      ? process.env.RADIUS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean)
+      : [],
   },
 
   email: {
@@ -149,23 +152,15 @@ export const validateConfig = (): boolean => {
   return true;
 };
 
-// Validate JWT secret strength (>= 32 chars)
+// Validate JWT secret strength (>= 32 chars in ALL environments)
 export const validateJwtSecrets = (): void => {
   if (!config.jwt.secret || config.jwt.secret.length < 32) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('FATAL: JWT_SECRET must be set and at least 32 characters in production');
-      process.exit(1);
-    }
-    console.warn('WARNING: JWT_SECRET not set or too short. Generating random secret for development.');
-    config.jwt.secret = crypto.randomBytes(32).toString('hex');
+    console.error('FATAL: JWT_SECRET must be set and at least 32 characters. Generate one with: openssl rand -base64 48');
+    process.exit(1);
   }
   if (!config.jwt.refreshSecret || config.jwt.refreshSecret.length < 32) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('FATAL: JWT_REFRESH_SECRET must be set and at least 32 characters in production');
-      process.exit(1);
-    }
-    console.warn('WARNING: JWT_REFRESH_SECRET not set or too short. Generating random secret for development.');
-    config.jwt.refreshSecret = crypto.randomBytes(32).toString('hex');
+    console.error('FATAL: JWT_REFRESH_SECRET must be set and at least 32 characters. Generate one with: openssl rand -base64 48');
+    process.exit(1);
   }
 };
 

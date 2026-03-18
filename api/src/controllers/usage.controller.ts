@@ -1,12 +1,13 @@
 import { Response, NextFunction } from 'express';
 import { usageService } from '../services/usage.service';
 import { AuthenticatedRequest, ApiResponse, NotFoundError } from '../types';
+import { prisma } from '../config/database';
 
 class UsageController {
   // Get current usage summary
   async getUsageSummary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customer = await require('../config/database').prisma.customer.findFirst({
+      const customer = await prisma.customer.findFirst({
         where: { userId: req.user!.id },
       });
 
@@ -30,7 +31,7 @@ class UsageController {
   // Get real-time usage
   async getRealtimeUsage(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customer = await require('../config/database').prisma.customer.findFirst({
+      const customer = await prisma.customer.findFirst({
         where: { userId: req.user!.id },
       });
 
@@ -54,7 +55,6 @@ class UsageController {
   // Get usage history
   async getUsageHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 30;
       const startDate = req.query.startDate as string;

@@ -4,8 +4,44 @@ import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth';
 import config from '../config';
 import { logger } from '../config/logger';
+import { radiusRateLimiter } from '../middleware/rateLimiter';
 
 const router: IRouter = Router();
+
+// Log HTTPS warning on startup if not behind TLS
+if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+  logger.warn('⚠️  RADIUS shared secrets are transmitted in headers. Ensure the API is behind HTTPS/TLS termination (e.g., nginx, load balancer).');
+}
+
+/**
+ * IP allowlist middleware for RADIUS endpoints.
+ * Checks req.ip or X-Forwarded-For against the configured RADIUS_ALLOWED_IPS list.
+ */
+const radiusIpAllowlist = (req: Request, res: Response, next: NextFunction): void => {
+  const allowedIps = config.radius.allowedIps;
+  if (allowedIps.length === 0) {
+    // No allowlist configured — warn and allow (fail-open for usability, but log loudly)
+    logger.warn('RADIUS_ALLOWED_IPS is not configured. RADIUS endpoints are accessible from any IP. Configure this for production security.');
+    next();
+    return;
+  }
+
+  // Use X-Forwarded-For if behind proxy, otherwise req.ip
+  const forwardedFor = req.headers['x-forwarded-for'] as string | undefined;
+  const clientIp = forwardedFor
+    ? forwardedFor.split(',')[0].trim()
+    : req.ip || req.socket.remoteAddress || '';
+
+  // Clean IPv6-mapped IPv4
+  const cleanIp = clientIp.replace(/^::ffff:/, '');
+
+  if (allowedIps.includes(cleanIp)) {
+    next();
+  } else {
+    logger.warn(`RADIUS endpoint accessed from unauthorized IP: ${cleanIp}`);
+    res.status(403).json({ error: 'Forbidden: IP not allowed' });
+  }
+};
 
 // Admin routes - get RADIUS sessions
 router.get('/sessions', authenticate, authorize('ADMIN', 'SUPPORT'), async (req: Request, res: Response) => {
@@ -146,8 +182,8 @@ router.get('/sessions/events', authenticate, authorize('ADMIN', 'SUPPORT'), asyn
   }
 });
 
-// RADIUS authentication endpoint
-router.post('/auth', async (req: Request, res: Response, next: NextFunction) => {
+// RADIUS authentication endpoint (rate limited + IP allowlisted)
+router.post('/auth', radiusRateLimiter, radiusIpAllowlist, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password, nasIpAddress, nasPortId, nasPortType } = req.body;
 
@@ -174,8 +210,8 @@ router.post('/auth', async (req: Request, res: Response, next: NextFunction) => 
   }
 });
 
-// RADIUS accounting endpoint
-router.post('/accounting', async (req: Request, res: Response, next: NextFunction) => {
+// RADIUS accounting endpoint (rate limited + IP allowlisted)
+router.post('/accounting', radiusRateLimiter, radiusIpAllowlist, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sharedSecret = req.headers['x-radius-secret'];
     if (sharedSecret !== config.radius.secret) {
@@ -219,8 +255,8 @@ router.post('/accounting', async (req: Request, res: Response, next: NextFunctio
   }
 });
 
-// RADIUS CoA (Change of Authorization) endpoint
-router.post('/coa', async (req: Request, res: Response, next: NextFunction) => {
+// RADIUS CoA (Change of Authorization) endpoint (rate limited + IP allowlisted)
+router.post('/coa', radiusRateLimiter, radiusIpAllowlist, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sharedSecret = req.headers['x-radius-secret'];
     if (sharedSecret !== config.radius.secret) {

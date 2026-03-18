@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../config/database';
 import config from '../config';
@@ -149,20 +150,7 @@ class BillingService {
         if (invoice.customer.balance >= invoice.totalAmount) {
           // Use transaction to ensure atomic deduction and invoice payment
           await prisma.$transaction(async (tx) => {
-            // Atomic decrement with condition (balance >= amount)
-            const decrementResult = await tx.$executeRaw`
-              UPDATE customers 
-              SET balance = balance - ${invoice.totalAmount}
-              WHERE id = ${invoice.customerId} 
-                AND balance >= ${invoice.totalAmount}
-            `;
-            
-            if (decrementResult === 0) {
-              // Balance insufficient (maybe changed concurrently), skip
-              return;
-            }
-
-            // Mark invoice as paid only if still pending
+            // Step 1: Atomically mark invoice as PAID only if still pending (CAS)
             const invoiceUpdateResult = await tx.invoice.updateMany({
               where: {
                 id: invoice.id,
@@ -175,18 +163,33 @@ class BillingService {
             });
 
             if (invoiceUpdateResult.count === 0) {
-              // Invoice already processed (paid or something else), rollback deduction? 
-              // Since we already decremented balance, we need to rollback manually.
-              // This is a race condition; we'll just log and maybe compensate later.
-              logger.warn(`Invoice ${invoice.id} already processed, balance already deducted`);
-              // We could increment balance back, but for simplicity we'll leave as is (rare).
+              // Invoice already processed by another process — skip, no balance change
               return;
             }
 
-            // Create payment record
+            // Step 2: Only now decrement balance (invoice is confirmed PAID)
+            const decrementResult = await tx.$executeRaw`
+              UPDATE customers 
+              SET balance = balance - ${invoice.totalAmount}
+              WHERE id = ${invoice.customerId} 
+                AND balance >= ${invoice.totalAmount}
+            `;
+
+            if (decrementResult === 0) {
+              // Balance went below amount between our check and this step (rare).
+              // Rollback the invoice status back to PENDING.
+              await tx.invoice.update({
+                where: { id: invoice.id },
+                data: { status: 'PENDING', paidAt: null },
+              });
+              logger.warn(`Invoice ${invoice.id}: balance insufficient after invoice mark, rolled back`);
+              return;
+            }
+
+            // Step 3: Create payment record
             await tx.payment.create({
               data: {
-                paymentNumber: `AUTO-${Date.now()}`,
+                paymentNumber: `AUTO-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
                 customerId: invoice.customerId,
                 invoiceId: invoice.id,
                 amount: invoice.totalAmount,
@@ -287,37 +290,64 @@ class BillingService {
     return { generated, errors };
   }
 
+  /**
+   * Get current date in EAT (Africa/Nairobi, UTC+3).
+   * Billing period logic should use EAT since the ISP operates in Kenya.
+   * Dates are stored in UTC but billing comparisons need local time.
+   */
+  private getEATDate(date?: Date): Date {
+    const d = date || new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Nairobi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(d);
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '0';
+    return new Date(
+      parseInt(get('year')),
+      parseInt(get('month')) - 1,
+      parseInt(get('day')),
+      parseInt(get('hour')),
+      parseInt(get('minute')),
+      parseInt(get('second')),
+    );
+  }
+
   // Check if invoice should be generated
   private shouldGenerateInvoice(subscription: any, lastInvoice: any): boolean {
-    const now = new Date();
+    // Use EAT (Africa/Nairobi, UTC+3) for billing period comparisons
+    const nowEAT = this.getEATDate();
 
     if (!lastInvoice) {
       // First invoice - generate if subscription started
-      return subscription.startDate <= now;
+      const startDateEAT = this.getEATDate(new Date(subscription.startDate));
+      return startDateEAT <= nowEAT;
     }
 
-    const lastInvoiceDate = new Date(lastInvoice.createdAt);
+    const lastInvoiceDateEAT = this.getEATDate(new Date(lastInvoice.createdAt));
 
     switch (subscription.plan.billingCycle) {
       case 'WEEKLY':
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return lastInvoiceDate <= weekAgo;
+        const weekAgoEAT = this.getEATDate(new Date(nowEAT.getTime() - 7 * 24 * 60 * 60 * 1000));
+        return lastInvoiceDateEAT <= weekAgoEAT;
 
       case 'MONTHLY':
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return lastInvoiceDate <= monthAgo;
+        const monthAgoEAT = this.getEATDate(new Date(nowEAT.getTime() - 30 * 24 * 60 * 60 * 1000));
+        return lastInvoiceDateEAT <= monthAgoEAT;
 
       case 'QUARTERLY':
-        const quarterAgo = new Date(now);
-        quarterAgo.setMonth(quarterAgo.getMonth() - 3);
-        return lastInvoiceDate <= quarterAgo;
+        const quarterAgoEAT = this.getEATDate(new Date(nowEAT.getTime() - 90 * 24 * 60 * 60 * 1000));
+        return lastInvoiceDateEAT <= quarterAgoEAT;
 
       case 'YEARLY':
-        const yearAgo = new Date(now);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        return lastInvoiceDate <= yearAgo;
+        const yearAgoEAT = this.getEATDate(new Date(nowEAT.getTime() - 365 * 24 * 60 * 60 * 1000));
+        return lastInvoiceDateEAT <= yearAgoEAT;
 
       default:
         return false;
@@ -346,6 +376,17 @@ class BillingService {
     const taxAmount = subtotal * taxRate;
     const totalAmount = subtotal + taxAmount;
 
+    // Include tax as a line item in metadata so PDF rendering shows the correct total
+    const itemsWithTax = [
+      ...items,
+      {
+        description: `VAT (${(taxRate * 100).toFixed(0)}%)`,
+        quantity: 1,
+        unitPrice: taxAmount,
+        amount: taxAmount,
+      },
+    ];
+
     // Create invoice
     const invoiceNumber = await invoiceService.generateInvoiceNumber();
 
@@ -360,7 +401,7 @@ class BillingService {
         totalAmount,
         dueDate: input.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         notes: input.notes,
-        metadata: { items },
+        metadata: { items: itemsWithTax },
       },
       include: {
         customer: {
@@ -403,17 +444,45 @@ class BillingService {
 
         // Apply 2% late fee per week overdue
         const weeksOverdue = Math.ceil(daysOverdue / 7);
-        const lateFee = Number(invoice.totalAmount) * 0.02 * weeksOverdue;
+        const lateFeeAmount = Number(invoice.totalAmount) * 0.02 * weeksOverdue;
 
-        if (lateFee > 0) {
+        if (lateFeeAmount > 0) {
+          const metadata = (invoice.metadata as Record<string, any>) || {};
+          const existingItems = metadata.items || [];
+
+          // Add late fee as a separate line item
+          const lateFeeLineItem = {
+            description: `Late Fee (${weeksOverdue} week${weeksOverdue > 1 ? 's' : ''} overdue)`,
+            quantity: 1,
+            unitPrice: lateFeeAmount,
+            amount: lateFeeAmount,
+          };
+
+          // Filter out any previous late fee items to avoid duplicates on re-runs
+          const nonLateFeeItems = existingItems.filter(
+            (item: any) => !item.description?.startsWith('Late Fee')
+          );
+          const allItems = [...nonLateFeeItems, lateFeeLineItem];
+
+          // Recalculate subtotal to include the late fee
+          const subtotal = allItems.reduce((sum: number, item: any) => sum + Number(item.amount), 0);
+
+          // Recalculate tax - late fees are subject to VAT in Kenya (16%)
+          const taxRate = Number(invoice.taxRate) || 0.16;
+          const taxAmount = subtotal * taxRate;
+          const totalAmount = subtotal + taxAmount;
+
           await prisma.invoice.update({
             where: { id: invoice.id },
             data: {
-              totalAmount: Number(invoice.totalAmount) + lateFee,
+              subtotal,
+              taxAmount,
+              totalAmount,
               metadata: {
-                ...((invoice.metadata as object) || {}),
+                ...metadata,
+                items: allItems,
                 lateFee: {
-                  amount: lateFee,
+                  amount: lateFeeAmount,
                   appliedAt: new Date().toISOString(),
                   weeksOverdue,
                 },
@@ -429,6 +498,75 @@ class BillingService {
     }
 
     return { processed };
+  }
+
+  // Settle pending invoices for a customer using available balance
+  // Returns the number of invoices settled
+  async settlePendingInvoicesForCustomer(customerId: string): Promise<{ settled: number }> {
+    let settled = 0;
+
+    const pendingInvoices = await prisma.invoice.findMany({
+      where: {
+        customerId,
+        status: 'PENDING',
+      },
+      orderBy: { dueDate: 'asc' },
+      include: { customer: true },
+    });
+
+    for (const invoice of pendingInvoices) {
+      try {
+        // Use the same atomic transaction as processPendingInvoices
+        await prisma.$transaction(async (tx) => {
+          // Step 1: Atomically mark invoice as PAID only if still pending
+          const invoiceUpdateResult = await tx.invoice.updateMany({
+            where: { id: invoice.id, status: 'PENDING' },
+            data: { status: 'PAID', paidAt: new Date() },
+          });
+
+          if (invoiceUpdateResult.count === 0) return;
+
+          // Step 2: Decrement balance
+          const decrementResult = await tx.$executeRaw`
+            UPDATE customers
+            SET balance = balance - ${invoice.totalAmount}
+            WHERE id = ${invoice.customerId}
+              AND balance >= ${invoice.totalAmount}
+          `;
+
+          if (decrementResult === 0) {
+            await tx.invoice.update({
+              where: { id: invoice.id },
+              data: { status: 'PENDING', paidAt: null },
+            });
+            return;
+          }
+
+          // Step 3: Create payment record
+          await tx.payment.create({
+            data: {
+              paymentNumber: `AUTO-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+              customerId: invoice.customerId,
+              invoiceId: invoice.id,
+              amount: invoice.totalAmount,
+              method: 'BALANCE',
+              status: 'COMPLETED',
+              processedAt: new Date(),
+              metadata: {
+                type: 'AUTO_SETTLEMENT',
+                description: 'Auto-settled from account balance after cash deposit',
+              },
+            },
+          });
+
+          settled++;
+        });
+      } catch (error) {
+        logger.error(`Error settling invoice ${invoice.id}:`, error);
+      }
+    }
+
+    return { settled };
   }
 
   // Get customer billing summary

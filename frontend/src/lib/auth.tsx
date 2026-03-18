@@ -52,12 +52,16 @@ interface RegisterData {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Cookie helpers for middleware-based route protection
-function setAuthCookies(role?: string) {
+function setAuthCookies(role?: string, accessToken?: string) {
   if (typeof document === 'undefined') return;
+  const maxAge = 60 * 60 * 24 * 7; // 7 days
   // Set a marker cookie for the middleware (actual auth is via localStorage/bearer token)
-  document.cookie = `isp_authenticated=true; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=lax`;
+  document.cookie = `isp_authenticated=true; path=/; max-age=${maxAge}; SameSite=lax`;
   if (role) {
-    document.cookie = `isp_user_role=${role}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=lax`;
+    document.cookie = `isp_user_role=${role}; path=/; max-age=${maxAge}; SameSite=lax`;
+  }
+  if (accessToken) {
+    document.cookie = `isp_access_token=${accessToken}; path=/; max-age=${maxAge}; SameSite=lax`;
   }
 }
 
@@ -65,6 +69,7 @@ function clearAuthCookies() {
   if (typeof document === 'undefined') return;
   document.cookie = 'isp_authenticated=; path=/; max-age=0';
   document.cookie = 'isp_user_role=; path=/; max-age=0';
+  document.cookie = 'isp_access_token=; path=/; max-age=0';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -83,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (storedUser) {
         setUser(storedUser as unknown as User);
-        setAuthCookies((storedUser as unknown as User).role);
+        setAuthCookies((storedUser as unknown as User).role, tokens.accessToken);
       }
 
       // Always fetch fresh profile
@@ -112,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.user as unknown as User;
       setUser(userData);
       api.setUser(response.data.user as Record<string, unknown>);
-      setAuthCookies(userData.role);
+      setAuthCookies(userData.role, response.data.tokens.accessToken);
     }
   };
 
@@ -123,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.data.user as unknown as User;
       setUser(userData);
       api.setUser(response.data.user as Record<string, unknown>);
-      setAuthCookies(userData.role);
+      setAuthCookies(userData.role, response.data.tokens.accessToken);
     }
   };
 

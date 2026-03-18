@@ -4,6 +4,7 @@ import { runInvoiceGeneration } from './invoiceGenerator';
 import { runAutoSuspend } from './autoSuspend';
 import { runLateFees } from './lateFees';
 import { runUsageReset } from './usageReset';
+import { runPendingPaymentCleanup } from './pendingPaymentCleanup';
 
 interface ScheduledJob {
   name: string;
@@ -32,6 +33,11 @@ const jobs: ScheduledJob[] = [
     name: 'Auto-Suspend',
     schedule: '0 2 * * *', // Every day at 2:00 AM
     handler: runAutoSuspend,
+  },
+  {
+    name: 'Pending Payment Cleanup',
+    schedule: '0 * * * *', // Every hour at minute 0
+    handler: runPendingPaymentCleanup,
   },
 ];
 

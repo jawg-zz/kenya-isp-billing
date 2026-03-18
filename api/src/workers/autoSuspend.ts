@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { smsService } from '../services/sms.service';
+import { radiusService } from '../services/radius.service';
 
 /**
  * Auto-Suspend Worker
@@ -117,6 +118,14 @@ export async function runAutoSuspend(): Promise<{
           where: { id: user.id },
           data: { accountStatus: 'SUSPENDED' },
         });
+
+        // Sync to FreeRADIUS - remove radcheck entries and disconnect sessions
+        try {
+          await radiusService.disableRadiusUser(customerId);
+        } catch (radiusError) {
+          logger.error(`[AutoSuspend] Failed to disable RADIUS for customer ${customerId}:`, radiusError);
+          // Don't increment errors - account was suspended successfully
+        }
 
         // Update all pending invoices for this customer to OVERDUE
         await prisma.invoice.updateMany({

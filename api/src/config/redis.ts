@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import config from './index';
+import { logger } from './logger';
 
 class RedisClient {
   private static instance: Redis;
@@ -24,11 +25,11 @@ class RedisClient {
       });
 
       RedisClient.instance.on('connect', () => {
-        console.log('Redis client connected');
+        logger.info('Redis client connected');
       });
 
       RedisClient.instance.on('error', (err) => {
-        console.error('Redis client error:', err);
+        logger.error('Redis client error:', err);
       });
     }
 

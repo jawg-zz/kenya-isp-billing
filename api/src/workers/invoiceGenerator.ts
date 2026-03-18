@@ -5,6 +5,35 @@ import { smsService } from '../services/sms.service';
 import config from '../config';
 
 /**
+ * Get current date in EAT (Africa/Nairobi, UTC+3).
+ * Billing period logic should use EAT since the ISP operates in Kenya.
+ * Mirrors the getEATDate helper in billing.service.ts.
+ */
+function getEATDate(date?: Date): Date {
+  const d = date || new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Nairobi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(d);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || '0';
+  return new Date(
+    parseInt(get('year')),
+    parseInt(get('month')) - 1,
+    parseInt(get('day')),
+    parseInt(get('hour')),
+    parseInt(get('minute')),
+    parseInt(get('second')),
+  );
+}
+
+/**
  * Invoice Generation Worker
  * Runs daily at 1:00 AM
  *
@@ -24,7 +53,8 @@ export async function runInvoiceGeneration(): Promise<{
 
   logger.info('[InvoiceGenerator] Starting invoice generation run...');
 
-  const now = new Date();
+  // Use EAT (Africa/Nairobi) for date comparisons to match billing.service.ts
+  const now = getEATDate();
 
   try {
     // === POSTPAID subscriptions ===
@@ -70,8 +100,8 @@ export async function runInvoiceGeneration(): Promise<{
     }
 
     // === PREPAID subscriptions (generate 3 days before expiry) ===
-    const threeDaysFromNow = new Date(now);
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    // Use EAT time for consistency
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     const prepaidSubscriptions = await prisma.subscription.findMany({
       where: {
@@ -149,6 +179,9 @@ async function shouldGeneratePostpaidInvoice(
   },
   now: Date
 ): Promise<boolean> {
+  // Use EAT (Africa/Nairobi, UTC+3) for billing period comparisons to match billing.service.ts
+  const nowEAT = getEATDate(now);
+
   // Find the most recent invoice for this subscription
   const lastInvoice = await prisma.invoice.findFirst({
     where: { subscriptionId: subscription.id },
@@ -156,32 +189,29 @@ async function shouldGeneratePostpaidInvoice(
   });
 
   if (!lastInvoice) {
-    // No previous invoice - generate if subscription has started
-    return subscription.startDate <= now;
+    // No previous invoice - generate if subscription has started (in EAT)
+    const startDateEAT = getEATDate(new Date(subscription.startDate));
+    return startDateEAT <= nowEAT;
   }
 
-  const lastInvoiceDate = new Date(lastInvoice.createdAt);
+  const lastInvoiceDateEAT = getEATDate(new Date(lastInvoice.createdAt));
 
   switch (subscription.plan.billingCycle) {
     case 'WEEKLY': {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return lastInvoiceDate <= weekAgo;
+      const weekAgoEAT = getEATDate(new Date(nowEAT.getTime() - 7 * 24 * 60 * 60 * 1000));
+      return lastInvoiceDateEAT <= weekAgoEAT;
     }
     case 'MONTHLY': {
-      const monthAgo = new Date(now);
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return lastInvoiceDate <= monthAgo;
+      const monthAgoEAT = getEATDate(new Date(nowEAT.getTime() - 30 * 24 * 60 * 60 * 1000));
+      return lastInvoiceDateEAT <= monthAgoEAT;
     }
     case 'QUARTERLY': {
-      const quarterAgo = new Date(now);
-      quarterAgo.setMonth(quarterAgo.getMonth() - 3);
-      return lastInvoiceDate <= quarterAgo;
+      const quarterAgoEAT = getEATDate(new Date(nowEAT.getTime() - 90 * 24 * 60 * 60 * 1000));
+      return lastInvoiceDateEAT <= quarterAgoEAT;
     }
     case 'YEARLY': {
-      const yearAgo = new Date(now);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      return lastInvoiceDate <= yearAgo;
+      const yearAgoEAT = getEATDate(new Date(nowEAT.getTime() - 365 * 24 * 60 * 60 * 1000));
+      return lastInvoiceDateEAT <= yearAgoEAT;
     }
     default:
       logger.warn(

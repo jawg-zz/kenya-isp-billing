@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { prisma } from '../config/database';
-import { cache } from '../config/redis';
+import { cache, default as RedisClient } from '../config/redis';
 import { Decimal } from '@prisma/client/runtime/library';
 import { mpesaService } from '../services/mpesa.service';
 import { airtelService } from '../services/airtel.service';
 import { hotspotService } from '../services/hotspot.service';
 import { smsService } from '../services/sms.service';
+import { billingService } from '../services/billing.service';
 import { AuthenticatedRequest, ApiResponse, MpesaCallback, AirtelCallback } from '../types';
 import { logger } from '../config/logger';
 
@@ -39,7 +41,7 @@ class PaymentController {
       }
 
       // Generate payment reference
-      const paymentNumber = `MP${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      const paymentNumber = `MP${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
       // Create pending payment record
       const payment = await prisma.payment.create({
@@ -126,9 +128,100 @@ class PaymentController {
       // M-Pesa expects a specific response format
       res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
     } catch (error) {
-      logger.error('M-Pesa callback error:', error);
-      // Always return 200 to M-Pesa to prevent retries
+      // Generate a unique correlation ID for this failure
+      const correlationId = `MPESA-ERR-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      logger.error(`M-Pesa callback error [correlationId=${correlationId}]:`, error);
+
+      // Store the failed callback payload in Redis for later retry
+      try {
+        const failedPayload = {
+          correlationId,
+          payload: req.body,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+        };
+        await RedisClient.getInstance().lpush('mpesa:failed_callbacks', JSON.stringify(failedPayload));
+        logger.info(`Failed M-Pesa callback stored for retry [correlationId=${correlationId}]`);
+      } catch (redisError) {
+        logger.error(`Failed to store M-Pesa callback in Redis [correlationId=${correlationId}]:`, redisError);
+      }
+
+      // Always return 200 to M-Pesa to prevent retries from their side
       res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    }
+  }
+
+  // Retry failed M-Pesa callbacks (admin only)
+  async retryFailedMpesaCallbacks(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const failedCallbacks: Array<{
+        correlationId: string;
+        payload: MpesaCallback;
+        error: string;
+        timestamp: string;
+      }> = [];
+
+      // Fetch all failed callbacks from the Redis list
+      while (true) {
+        const raw = await RedisClient.getInstance().rpop('mpesa:failed_callbacks');
+        if (!raw) break;
+        try {
+          failedCallbacks.push(JSON.parse(raw));
+        } catch {
+          logger.warn('Failed to parse failed M-Pesa callback payload, skipping');
+        }
+      }
+
+      if (failedCallbacks.length === 0) {
+        const response: ApiResponse = {
+          success: true,
+          message: 'No failed callbacks to retry',
+          data: { processed: 0, failed: 0 },
+        };
+        res.json(response);
+        return;
+      }
+
+      let processed = 0;
+      let failed = 0;
+      const results: Array<{ correlationId: string; status: string; error?: string }> = [];
+
+      for (const entry of failedCallbacks) {
+        try {
+          logger.info(`Retrying failed M-Pesa callback [correlationId=${entry.correlationId}]`);
+          await mpesaService.processCallback(entry.payload);
+          processed++;
+          results.push({ correlationId: entry.correlationId, status: 'SUCCESS' });
+        } catch (retryError) {
+          failed++;
+          const errorMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          results.push({ correlationId: entry.correlationId, status: 'FAILED', error: errorMsg });
+          logger.error(`Retry failed for M-Pesa callback [correlationId=${entry.correlationId}]:`, retryError);
+
+          // Re-queue the failed callback for future retry (max 3 retries by checking metadata)
+          const retryCount = (entry as any)._retryCount || 0;
+          if (retryCount < 2) {
+            const requeuePayload = {
+              ...entry,
+              _retryCount: retryCount + 1,
+              lastRetryAt: new Date().toISOString(),
+            };
+            await RedisClient.getInstance().lpush('mpesa:failed_callbacks', JSON.stringify(requeuePayload));
+          } else {
+            logger.error(`M-Pesa callback exceeded max retries, discarding [correlationId=${entry.correlationId}]`);
+          }
+        }
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        message: `Retry complete: ${processed} processed, ${failed} failed`,
+        data: { processed, failed, results },
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -230,7 +323,7 @@ class PaymentController {
         return;
       }
 
-      const paymentNumber = `AIR${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      const paymentNumber = `AIR${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
       const payment = await prisma.payment.create({
         data: {
@@ -239,7 +332,7 @@ class PaymentController {
           userId: req.user!.id,
           amount,
           currency: 'KES',
-          method: 'AIREL_MONEY',
+          method: 'AIRTEL_MONEY',
           status: 'PENDING',
           metadata: {
             phoneNumber,
@@ -469,7 +562,7 @@ class PaymentController {
         return;
       }
 
-      const paymentNumber = `CSH${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+      const paymentNumber = `CSH${Date.now()}${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
       const payment = await prisma.payment.create({
         data: {
@@ -493,6 +586,12 @@ class PaymentController {
           balance: { increment: amountDecimal },
         },
       });
+
+      // Auto-settle any pending invoices for this customer
+      const { settled } = await billingService.settlePendingInvoicesForCustomer(customerId);
+      if (settled > 0) {
+        logger.info(`Auto-settled ${settled} pending invoice(s) for customer ${customerId} after cash payment`);
+      }
 
       // Send SMS confirmation
       if (customer.user.phone) {

@@ -267,9 +267,9 @@ class CustomerController {
 
       // Handle account status changes
       if (userData.accountStatus === 'SUSPENDED') {
-        await radiusService.disableUser(id);
+        await radiusService.disableRadiusUser(id);
       } else if (userData.accountStatus === 'ACTIVE') {
-        await radiusService.enableUser(id);
+        await radiusService.enableRadiusUser(id);
       }
 
       const response: ApiResponse = {
@@ -418,7 +418,7 @@ class CustomerController {
       });
 
       // Disable RADIUS user
-      await radiusService.disableUser(id);
+      await radiusService.disableRadiusUser(id);
 
       const response: ApiResponse = {
         success: true,

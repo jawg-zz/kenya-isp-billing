@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService } from '../services/auth.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
+import { prisma } from '../config/database';
+import { cache } from '../config/redis';
 
 class AuthController {
   // Register new user
@@ -82,8 +84,6 @@ class AuthController {
   // Get current user profile
   async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
-
       const user = await prisma.user.findUnique({
         where: { id: req.user!.id },
         select: {
@@ -130,8 +130,6 @@ class AuthController {
   // Update profile
   async updateProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
-
       const user = await prisma.user.update({
         where: { id: req.user!.id },
         data: req.body,
@@ -221,8 +219,6 @@ class AuthController {
   // Verify email
   async verifyEmail(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
-      const { cache } = require('../config/redis');
       const { token } = req.body;
 
       const userId = await cache.get(`emailVerify:${token}`);
@@ -271,8 +267,6 @@ class AuthController {
   // Verify phone
   async verifyPhone(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
-      const { cache } = require('../config/redis');
       const { code } = req.body;
 
       const storedCode = await cache.get(`phoneVerify:${req.user!.id}`);
@@ -305,7 +299,6 @@ class AuthController {
   // Get notifications
   async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       const unreadOnly = req.query.unreadOnly === 'true';
@@ -347,7 +340,6 @@ class AuthController {
   // Mark notification as read
   async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
       const { id } = req.params;
 
       await prisma.notification.updateMany({
@@ -372,8 +364,6 @@ class AuthController {
   // Mark all notifications as read
   async markAllNotificationsRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { prisma } = require('../config/database');
-
       await prisma.notification.updateMany({
         where: {
           userId: req.user!.id,

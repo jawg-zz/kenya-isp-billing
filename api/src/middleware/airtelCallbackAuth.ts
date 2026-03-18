@@ -176,9 +176,9 @@ export const validateAirtelIdempotency = async (
       return;
     }
 
-    // Mark as processed (TTL: 1 hour — long enough for retries, short enough to expire)
-    await cache.set(redisKey, { processedAt: new Date().toISOString() }, 3600);
-
+    // Do NOT set the idempotency key here — it is set AFTER successful
+    // transaction processing in airtelService.processCallback().  Setting
+    // it here would permanently block retries if processing fails.
     next();
   } catch (error) {
     logger.error('Airtel idempotency check error:', error);

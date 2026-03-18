@@ -197,111 +197,163 @@ class MpesaService {
       resultCode: ResultCode,
     });
 
-    // Use transaction to prevent race conditions
-    await prisma.$transaction(async (tx) => {
-      // Find the payment record with lock (SELECT FOR UPDATE equivalent)
-      // Prisma doesn't have FOR UPDATE, but we can use update with condition
-      // First find the payment
-      const payment = await tx.payment.findFirst({
-        where: {
-          OR: [
-            { merchantRequestId: MerchantRequestID },
-            { checkoutRequestId: CheckoutRequestID },
-          ],
-        },
-        include: {
-          customer: true,
-          subscription: true,
-        },
+    const callbackId = MerchantRequestID || CheckoutRequestID;
+    const idempotencyKey = `mpesa:callback:${callbackId}`;
+
+    try {
+      // Use transaction with row-level locking to prevent race conditions
+      // Two concurrent callbacks can both see status=PENDING without FOR UPDATE,
+      // causing double-credit of the customer balance.
+      await prisma.$transaction(async (tx) => {
+        // Lock the payment row with SELECT ... FOR UPDATE before checking status.
+        // This serializes concurrent callbacks targeting the same payment.
+        const lockedPayments = await tx.$queryRaw<any[]>`
+          SELECT p.*, c."balance" as "customer_balance"
+          FROM "Payment" p
+          JOIN "customers" c ON c.id = p."customerId"
+          WHERE p."merchantRequestId" = ${MerchantRequestID}
+             OR p."checkoutRequestId" = ${CheckoutRequestID}
+          FOR UPDATE
+        `;
+
+        const lockedPayment = lockedPayments?.[0];
+
+        if (!lockedPayment) {
+          logger.error('Payment not found for callback:', {
+            merchantRequestId: MerchantRequestID,
+            checkoutRequestId: CheckoutRequestID,
+          });
+          return;
+        }
+
+        // If payment already processed, skip (safe now because row is locked)
+        if (lockedPayment.status === 'COMPLETED' || lockedPayment.status === 'FAILED') {
+          logger.warn(`Payment ${lockedPayment.id} already processed with status ${lockedPayment.status}`);
+          return;
+        }
+
+        // Fetch related data for processing
+        const payment = await tx.payment.findUnique({
+          where: { id: lockedPayment.id },
+          include: {
+            customer: true,
+            subscription: true,
+          },
+        });
+
+        if (!payment) return;
+
+        // Extract callback metadata
+        let mpesaReceiptNumber: string | undefined;
+        let transactionDate: string | undefined;
+        let phoneNumber: string | undefined;
+
+        if (stkCallback.CallbackMetadata) {
+          for (const item of stkCallback.CallbackMetadata.Item) {
+            switch (item.Name) {
+              case 'MpesaReceiptNumber':
+                mpesaReceiptNumber = item.Value as string;
+                break;
+              case 'TransactionDate':
+                transactionDate = item.Value as string;
+                break;
+              case 'PhoneNumber':
+                phoneNumber = item.Value as string;
+                break;
+            }
+          }
+        }
+
+        // Update payment based on result code
+        const updateData: any = {
+          resultCode: ResultCode.toString(),
+          resultDesc: ResultDesc,
+          metadata: {
+            ...((payment.metadata as object) || {}),
+            mpesaReceiptNumber,
+            transactionDate,
+            phoneNumber,
+          },
+        };
+
+        if (ResultCode === 0) {
+          // Payment successful
+          updateData.status = 'COMPLETED';
+          updateData.reference = mpesaReceiptNumber;
+          updateData.processedAt = new Date();
+
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: updateData,
+          });
+
+          // Process successful payment within same transaction
+          await this.handleSuccessfulPaymentWithinTransaction(tx, payment);
+        } else {
+          // Payment failed
+          updateData.status = 'FAILED';
+
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: updateData,
+          });
+
+          logger.warn('M-Pesa payment failed:', {
+            paymentId: payment.id,
+            resultCode: ResultCode,
+            resultDesc: ResultDesc,
+          });
+
+          // Notify customer of failed payment
+          await tx.notification.create({
+            data: {
+              userId: payment.customer.userId,
+              type: 'PAYMENT_FAILED',
+              title: 'Payment Failed',
+              message: `Your M-Pesa payment of KES ${payment.amount} failed: ${ResultDesc}`,
+              channel: 'in_app',
+            },
+          });
+        }
       });
 
-      if (!payment) {
-        logger.error('Payment not found for callback:', {
-          merchantRequestId: MerchantRequestID,
-          checkoutRequestId: CheckoutRequestID,
-        });
-        return;
+      // Transaction succeeded — set the idempotency key NOW (after successful processing)
+      // so that duplicate callbacks are correctly rejected.
+      try {
+        const { cache } = await import('../config/redis');
+        await cache.set(idempotencyKey, { processedAt: new Date().toISOString() }, 86400);
+      } catch (redisError) {
+        logger.error('Failed to set idempotency key after successful callback processing:', redisError);
       }
 
-      // If payment already processed, skip
-      if (payment.status === 'COMPLETED' || payment.status === 'FAILED') {
-        logger.warn(`Payment ${payment.id} already processed with status ${payment.status}`);
-        return;
-      }
-
-      // Extract callback metadata
-      let mpesaReceiptNumber: string | undefined;
-      let transactionDate: string | undefined;
-      let phoneNumber: string | undefined;
-
-      if (stkCallback.CallbackMetadata) {
-        for (const item of stkCallback.CallbackMetadata.Item) {
-          switch (item.Name) {
-            case 'MpesaReceiptNumber':
-              mpesaReceiptNumber = item.Value as string;
-              break;
-            case 'TransactionDate':
-              transactionDate = item.Value as string;
-              break;
-            case 'PhoneNumber':
-              phoneNumber = item.Value as string;
-              break;
-          }
+      // Invalidate RADIUS cache if subscription was activated/renewed
+      if (payment.subscriptionId) {
+        try {
+          const { radiusService } = await import('./radius.service');
+          await radiusService.invalidateCacheForCustomer(payment.customerId);
+        } catch (err) {
+          logger.error('Failed to invalidate RADIUS cache after M-Pesa payment:', err);
         }
       }
 
-      // Update payment based on result code
-      const updateData: any = {
-        resultCode: ResultCode.toString(),
-        resultDesc: ResultDesc,
-        metadata: {
-          ...((payment.metadata as object) || {}),
-          mpesaReceiptNumber,
-          transactionDate,
-          phoneNumber,
-        },
-      };
-
-      if (ResultCode === 0) {
-        // Payment successful
-        updateData.status = 'COMPLETED';
-        updateData.reference = mpesaReceiptNumber;
-        updateData.processedAt = new Date();
-
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: updateData,
-        });
-
-        // Process successful payment within same transaction
-        await this.handleSuccessfulPaymentWithinTransaction(tx, payment);
-      } else {
-        // Payment failed
-        updateData.status = 'FAILED';
-
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: updateData,
-        });
-
-        logger.warn('M-Pesa payment failed:', {
-          paymentId: payment.id,
-          resultCode: ResultCode,
-          resultDesc: ResultDesc,
-        });
-
-        // Notify customer of failed payment
-        await tx.notification.create({
-          data: {
-            userId: payment.customer.userId,
-            type: 'PAYMENT_FAILED',
-            title: 'Payment Failed',
-            message: `Your M-Pesa payment of KES ${payment.amount} failed: ${ResultDesc}`,
-            channel: 'in_app',
-          },
-        });
+      logger.info('M-Pesa callback processed successfully:', {
+        merchantRequestId: MerchantRequestID,
+        checkoutRequestId: CheckoutRequestID,
+      });
+    } catch (error) {
+      // Processing failed — delete the idempotency key so retry is allowed.
+      // Without this, the retry would be blocked by the middleware's
+      // "already processed" check even though processing never completed.
+      try {
+        const { cache } = await import('../config/redis');
+        await cache.del(idempotencyKey);
+        logger.info(`Idempotency key deleted for failed callback, retry will be allowed: ${callbackId}`);
+      } catch (redisError) {
+        logger.error('Failed to delete idempotency key after callback processing failure:', redisError);
       }
-    });
+
+      throw error;
+    }
   }
 
   // Handle successful payment (within transaction)
@@ -337,8 +389,33 @@ class MpesaService {
       if (subscription) {
         const plan = subscription.plan;
         const now = new Date();
+
+        // Only allow activation/extension for PENDING_PAYMENT or ACTIVE subscriptions.
+        // TERMINATED, EXPIRED, and SUSPENDED subscriptions should NOT be reactivated
+        // by a payment callback — the customer needs to create a new subscription.
+        if (subscription.status !== 'PENDING_PAYMENT' && subscription.status !== 'ACTIVE') {
+          logger.warn(`M-Pesa payment received for ${subscription.status} subscription ${subscription.id}, not activating. Customer ${payment.customerId} needs to create a new subscription.`, {
+            subscriptionId: subscription.id,
+            subscriptionStatus: subscription.status,
+            paymentId: payment.id,
+          });
+
+          // Notify customer that their payment can't activate this subscription
+          await tx.notification.create({
+            data: {
+              userId: payment.customer.userId,
+              type: 'PAYMENT_RECEIVED',
+              title: 'Payment Received — Action Required',
+              message: `Your M-Pesa payment of KES ${payment.amount} was received, but your ${plan.name} subscription is ${subscription.status.toLowerCase()} and cannot be reactivated. Please create a new subscription to activate your service.`,
+              channel: 'in_app',
+            },
+          });
+
+          return;
+        }
+
         let newEndDate = new Date(now);
-        
+
         // If subscription already active, extend from existing end date
         if (subscription.status === 'ACTIVE' && subscription.endDate > now) {
           newEndDate = new Date(subscription.endDate);
@@ -349,17 +426,13 @@ class MpesaService {
 
         const updateData: any = {
           status: 'ACTIVE',
+          startDate: now,
           endDate: newEndDate,
+          dataUsed: 0,
+          dataRemaining: plan.dataAllowance,
+          voiceMinutesUsed: 0,
+          smsUsed: 0,
         };
-        
-        // Only reset usage if subscription was not active
-        if (subscription.status !== 'ACTIVE') {
-          updateData.startDate = now;
-          updateData.dataUsed = 0;
-          updateData.dataRemaining = plan.dataAllowance;
-          updateData.voiceMinutesUsed = 0;
-          updateData.smsUsed = 0;
-        }
 
         await tx.subscription.update({
           where: { id: subscription.id },

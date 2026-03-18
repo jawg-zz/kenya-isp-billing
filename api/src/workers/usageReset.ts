@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { smsService } from '../services/sms.service';
+import { radiusService } from '../services/radius.service';
 
 /**
  * Usage Reset Worker
@@ -127,6 +128,9 @@ export async function runUsageReset(): Promise<{
               },
             },
           });
+
+          // Invalidate RADIUS cache so auth rejects terminated subscription
+          await radiusService.invalidateCacheForCustomer(subscription.customerId);
 
           // Send expiry notification
           if (subscription.customer.user.phone) {

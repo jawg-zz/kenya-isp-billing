@@ -182,7 +182,7 @@ const options: swaggerJsdoc.Options = {
             customerId: { type: 'string' },
             amount: { type: 'number' },
             currency: { type: 'string', example: 'KES' },
-            method: { type: 'string', enum: ['MPESA', 'AIREL_MONEY', 'CASH', 'BANK'] },
+            method: { type: 'string', enum: ['MPESA', 'AIRTEL_MONEY', 'CASH', 'BANK'] },
             status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED', 'TIMEOUT'] },
             reference: { type: 'string', nullable: true },
             processedAt: { type: 'string', format: 'date-time', nullable: true },

@@ -103,10 +103,9 @@ export const validateMpesaSignature = async (
     const publicKey = await getPublicKey();
 
     if (!publicKey) {
-      // If we can't load the public key, log a warning but allow the callback
-      // In production, you should fail-closed (return 403)
-      logger.warn('M-Pesa public key unavailable - allowing callback without signature validation');
-      next();
+      // In production, reject callbacks without certificate configuration
+      logger.error('M-Pesa public key unavailable - rejecting callback in production (MPESA_CERT_PATH must be configured)');
+      res.status(403).json({ error: 'Forbidden: M-Pesa certificate not configured' });
       return;
     }
 
@@ -134,16 +133,33 @@ export const validateMpesaSignature = async (
   }
 };
 
-/**
- * Idempotency check - prevent duplicate callback processing
- */
-const processedCallbacks = new Set<string>();
-
-export const mpesaIdempotencyCheck = (
+// Also reject in production when M-Pesa environment is production and cert is missing
+export const validateMpesaProductionCert = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
+  const isProduction = process.env.MPESA_ENVIRONMENT === 'production';
+  const certPath = process.env.MPESA_CERT_PATH;
+
+  if (isProduction && !certPath) {
+    logger.error('M-Pesa production mode requires MPESA_CERT_PATH to be configured. Rejecting callback.');
+    res.status(403).json({ error: 'Forbidden: M-Pesa certificate not configured for production' });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Idempotency check - prevent duplicate callback processing.
+ * Uses Redis for distributed deduplication (TTL: 24 hours).
+ */
+export const mpesaIdempotencyCheck = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   const { MerchantRequestID, CheckoutRequestID } = req.body?.Body?.stkCallback || {};
 
   if (!MerchantRequestID && !CheckoutRequestID) {
@@ -152,22 +168,27 @@ export const mpesaIdempotencyCheck = (
   }
 
   const callbackId = MerchantRequestID || CheckoutRequestID;
+  const redisKey = `mpesa:callback:${callbackId}`;
 
-  if (processedCallbacks.has(callbackId)) {
-    logger.warn(`Duplicate M-Pesa callback ignored: ${callbackId}`);
-    // Return success to prevent Safaricom retries
-    res.status(200).json({ ResultCode: 0, ResultDesc: 'Already processed' });
-    return;
+  try {
+    const { cache } = await import('../config/redis');
+    const alreadyProcessed = await cache.get(redisKey);
+
+    if (alreadyProcessed) {
+      logger.warn(`Duplicate M-Pesa callback ignored: ${callbackId}`);
+      // Return success to prevent Safaricom retries
+      res.status(200).json({ ResultCode: 0, ResultDesc: 'Already processed' });
+      return;
+    }
+
+    // Only CHECK here — do NOT set the key yet. The key is set inside
+    // processCallback after the transaction succeeds. This avoids blocking
+    // retry of failed callbacks (which would otherwise be rejected as
+    // "already processed" even though processing never completed).
+    next();
+  } catch (error) {
+    logger.error('Redis idempotency check failed, allowing callback:', error);
+    // Fail-open: allow the callback through if Redis is unavailable
+    next();
   }
-
-  // Mark as processed (in production, use Redis for distributed systems)
-  processedCallbacks.add(callbackId);
-
-  // Clean up old entries periodically (simple in-memory approach)
-  if (processedCallbacks.size > 10000) {
-    const entries = Array.from(processedCallbacks);
-    entries.slice(0, 5000).forEach((e) => processedCallbacks.delete(e));
-  }
-
-  next();
 };

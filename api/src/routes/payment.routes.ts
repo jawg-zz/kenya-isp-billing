@@ -48,6 +48,13 @@ router.post(
 // All other routes require authentication
 router.use(authenticate);
 
+// Retry failed M-Pesa callbacks (admin only)
+router.post(
+  '/mpesa/retry-failed',
+  authorize('ADMIN'),
+  paymentController.retryFailedMpesaCallbacks
+);
+
 /**
  * @swagger
  * /payments/mpesa/initiate:
@@ -176,7 +183,7 @@ router.post('/airtel/initiate', validate(airtelPaymentSchema), paymentController
  *         name: method
  *         schema:
  *           type: string
- *           enum: [MPESA, AIREL_MONEY, CASH, BANK]
+ *           enum: [MPESA, AIRTEL_MONEY, CASH, BANK]
  *     responses:
  *       200:
  *         description: Paginated payment history

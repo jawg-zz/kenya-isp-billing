@@ -63,7 +63,7 @@ export const updateProfileSchema = z.object({
   county: countySchema.optional(),
   postalCode: z.string().trim().max(10).optional(),
   preferredPayment: z
-    .enum(['MPESA', 'AIREL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
+    .enum(['MPESA', 'AIRTEL_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
     .optional(),
 });
 

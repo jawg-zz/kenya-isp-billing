@@ -5,7 +5,8 @@ import morgan from 'morgan';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 
-// Fix BigInt serialization for JSON responses
+// BigInt doesn't serialize to JSON natively (JSON.stringify throws TypeError).
+// This polyfill converts BigInt values to strings so API responses remain valid JSON.
 (BigInt.prototype as any).toJSON = function() { return this.toString(); };
 
 import config from './config';
@@ -147,15 +148,25 @@ app.get(`${config.apiPrefix}/health`, async (_req, res) => {
   });
 });
 
-// Swagger UI
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'ISP Billing API Documentation',
-}));
-// Serve raw OpenAPI spec as JSON
-app.get('/api/docs.json', (_req, res) => {
-  res.json(swaggerSpec);
-});
+// Swagger UI - gated behind non-production
+if (config.env !== 'production') {
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'ISP Billing API Documentation',
+  }));
+  // Serve raw OpenAPI spec as JSON
+  app.get('/api/docs.json', (_req, res) => {
+    res.json(swaggerSpec);
+  });
+} else {
+  // In production, return 404 for docs endpoints
+  app.use('/api/docs', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+  app.use('/api/docs.json', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+}
 
 // API routes
 app.use(`${config.apiPrefix}/auth`, authRoutes);

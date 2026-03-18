@@ -75,10 +75,11 @@ export const renewSubscriptionSchema = z.object({
   subscriptionId: uuidSchema,
   paymentMethod: z.enum([
     'MPESA',
-    'AIREL_MONEY',
+    'AIRTEL_MONEY',
     'CASH',
     'BANK_TRANSFER',
     'CARD',
+    'BALANCE',
   ]),
 });
 
