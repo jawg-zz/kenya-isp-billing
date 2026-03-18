@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { MainLayout } from '@/components/layout/Sidebar';
@@ -32,26 +32,20 @@ interface SettingsMap {
   [key: string]: string;
 }
 
-// ── Inline Tabs components (matches project styling) ──────────────────
+// ── Inline Tabs components (proper React context) ─────────────────────
 
 interface TabsContextValue {
   active: string;
   setActive: (id: string) => void;
 }
 
-const TabsContext = (() => {
-  let ctx: TabsContextValue | null = null;
-  return {
-    Provider({ value, children }: { value: TabsContextValue; children: React.ReactNode }) {
-      ctx = value;
-      return <>{children}</>;
-    },
-    use() {
-      if (!ctx) throw new Error('Tabs components must be used within <Tabs>');
-      return ctx;
-    },
-  };
-})();
+const TabsContext = createContext<TabsContextValue | null>(null);
+
+function useTabsContext() {
+  const ctx = useContext(TabsContext);
+  if (!ctx) throw new Error('Tabs components must be used within <Tabs>');
+  return ctx;
+}
 
 function Tabs({
   defaultValue,
@@ -90,10 +84,11 @@ function TabsTrigger({
   children: React.ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
 }) {
-  const { active, setActive } = TabsContext.use();
+  const { active, setActive } = useTabsContext();
   const isActive = active === value;
   return (
     <button
+      type="button"
       role="tab"
       aria-selected={isActive}
       onClick={() => setActive(value)}
@@ -118,7 +113,7 @@ function TabsContent({
   children: React.ReactNode;
   className?: string;
 }) {
-  const { active } = TabsContext.use();
+  const { active } = useTabsContext();
   if (active !== value) return null;
   return <div role="tabpanel" className={className}>{children}</div>;
 }
