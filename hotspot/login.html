@@ -3,158 +3,512 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeorgeISP - Login</title>
+    <title>GeorgeISP - Internet Access</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
-        .container {
-            background: #fff;
-            border-radius: 20px;
-            padding: 40px 30px;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        .logo {
+        .container { max-width: 420px; margin: 0 auto; }
+
+        /* Header */
+        .header {
             text-align: center;
-            margin-bottom: 30px;
+            color: #fff;
+            margin-bottom: 25px;
         }
-        .logo h1 {
-            font-size: 28px;
-            color: #333;
-            font-weight: 700;
+        .header h1 { font-size: 26px; margin-bottom: 5px; }
+        .header p { opacity: 0.8; font-size: 14px; }
+
+        /* Tab switch */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 4px;
         }
-        .logo span {
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: background 0.3s;
+        }
+        .tab.active {
+            background: #fff;
             color: #667eea;
         }
-        .logo p {
-            color: #888;
-            font-size: 14px;
-            margin-top: 5px;
+
+        /* Sections */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Package cards */
+        .section-title {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            padding-left: 5px;
         }
-        .form-group {
-            margin-bottom: 20px;
+        .packages { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+        .package-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 3px solid transparent;
         }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-size: 14px;
-            font-weight: 500;
+        .package-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+        .package-card.selected { border-color: #ffd700; box-shadow: 0 8px 25px rgba(255,215,0,0.3); }
+        .package-info h3 { font-size: 17px; color: #333; margin-bottom: 3px; }
+        .package-info p { color: #888; font-size: 12px; }
+        .package-price { text-align: right; }
+        .package-price .amount { font-size: 20px; font-weight: 700; color: #667eea; }
+        .package-price .currency { font-size: 13px; color: #888; }
+
+        /* Phone + pay section */
+        .pay-section {
+            background: #fff;
+            border-radius: 16px;
+            padding: 22px;
+            display: none;
         }
-        .form-group input {
-            width: 100%;
-            padding: 14px 16px;
+        .pay-section.visible { display: block; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(15px); } to { opacity:1; transform:translateY(0); } }
+        .pay-section label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 500; }
+        .phone-input { display: flex; gap: 8px; margin-bottom: 12px; }
+        .phone-prefix {
+            padding: 13px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
             border: 2px solid #e1e1e1;
-            border-radius: 12px;
-            font-size: 16px;
-            transition: border-color 0.3s;
+        }
+        .phone-input input {
+            flex: 1;
+            padding: 13px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 15px;
             outline: none;
         }
-        .form-group input:focus {
-            border-color: #667eea;
-        }
-        .btn-login {
+        .phone-input input:focus { border-color: #667eea; }
+        .btn-pay {
             width: 100%;
-            padding: 16px;
+            padding: 15px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
             border: none;
             border-radius: 12px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        .btn-pay:disabled { opacity: 0.5; cursor: not-allowed; }
+        .selected-pkg {
+            background: #f0f4ff;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .btn-login:active {
-            transform: translateY(0);
+        .selected-pkg .name { font-weight: 600; color: #333; font-size: 14px; }
+        .selected-pkg .price { color: #667eea; font-weight: 700; }
+
+        /* Processing */
+        .processing { display: none; text-align: center; padding: 30px 10px; }
+        .processing.visible { display: block; }
+        .spinner {
+            width: 45px; height: 45px;
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
         }
-        .error-msg {
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .processing h3 { color: #333; margin-bottom: 8px; font-size: 16px; }
+        .processing p { color: #888; font-size: 13px; line-height: 1.5; }
+
+        /* Success */
+        .success { display: none; text-align: center; background: #fff; border-radius: 16px; padding: 25px 20px; }
+        .success.visible { display: block; }
+        .success .icon { font-size: 50px; margin-bottom: 10px; }
+        .success h3 { color: #333; margin-bottom: 5px; }
+        .success p { color: #888; font-size: 13px; margin-bottom: 5px; }
+        .credentials {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: left;
+        }
+        .credentials .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; }
+        .credentials .row:last-child { border: none; }
+        .credentials .label { color: #888; font-size: 12px; }
+        .credentials .value { font-weight: 600; color: #333; font-family: monospace; font-size: 14px; }
+
+        /* Login form (returning users) */
+        .login-form {
+            background: #fff;
+            border-radius: 16px;
+            padding: 25px;
+        }
+        .login-form h3 {
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 18px;
+        }
+        .login-form .subtitle {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #555; font-size: 13px; font-weight: 500; }
+        .form-group input {
+            width: 100%;
+            padding: 13px 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 15px;
+            outline: none;
+        }
+        .form-group input:focus { border-color: #667eea; }
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+        .login-error {
             background: #fee;
             color: #c33;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 14px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             display: none;
         }
-        .info-box {
-            background: #f0f4ff;
-            color: #555;
-            padding: 15px;
-            border-radius: 12px;
-            font-size: 13px;
-            margin-top: 25px;
-            line-height: 1.6;
-        }
-        .info-box strong {
-            color: #333;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 20px;
-            color: #aaa;
-            font-size: 12px;
-        }
+
+        .footer { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.6); font-size: 11px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">
-            <h1>George<span>ISP</span></h1>
-            <p>Welcome to GeorgeISP Hotspot</p>
+        <div class="header">
+            <h1>🌐 GeorgeISP</h1>
+            <p>Get connected in seconds</p>
         </div>
 
-        <div class="error-msg" id="error">Invalid username or password. Please try again.</div>
+        <!-- Tab Switch -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('buy')">Buy Package</div>
+            <div class="tab" onclick="switchTab('login')">I Have Credentials</div>
+        </div>
 
-        <form method="post" action="$PORTAL_ACTION$">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+        <!-- ==================== BUY SECTION ==================== -->
+        <div class="section active" id="section-buy">
+            <!-- Package Selection -->
+            <div id="pkgStep1">
+                <div class="section-title">Choose a Package</div>
+                <div class="packages" id="packages">
+                    <div class="package-card" data-id="hourly" data-price="20" data-name="1 Hour" data-speed="2" data-data="500MB">
+                        <div class="package-info">
+                            <h3>☕ 1 Hour</h3>
+                            <p>2 Mbps · 500 MB</p>
+                        </div>
+                        <div class="package-price">
+                            <span class="amount">20</span>
+                            <span class="currency">KES</span>
+                        </div>
+                    </div>
+                    <div class="package-card" data-id="daily" data-price="50" data-name="24 Hours" data-speed="3" data-data="2GB">
+                        <div class="package-info">
+                            <h3>📅 Day Pass</h3>
+                            <p>3 Mbps · 2 GB</p>
+                        </div>
+                        <div class="package-price">
+                            <span class="amount">50</span>
+                            <span class="currency">KES</span>
+                        </div>
+                    </div>
+                    <div class="package-card" data-id="weekly" data-price="250" data-name="7 Days" data-speed="5" data-data="10GB">
+                        <div class="package-info">
+                            <h3>⚡ Weekly</h3>
+                            <p>5 Mbps · 10 GB</p>
+                        </div>
+                        <div class="package-price">
+                            <span class="amount">250</span>
+                            <span class="currency">KES</span>
+                        </div>
+                    </div>
+                    <div class="package-card" data-id="monthly" data-price="800" data-name="30 Days" data-speed="5" data-data="30GB">
+                        <div class="package-info">
+                            <h3>🔥 Monthly</h3>
+                            <p>5 Mbps · 30 GB</p>
+                        </div>
+                        <div class="package-price">
+                            <span class="amount">800</span>
+                            <span class="currency">KES</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+
+            <!-- Phone + Pay -->
+            <div class="pay-section" id="pkgStep2">
+                <div class="selected-pkg">
+                    <span class="name" id="selectedName">-</span>
+                    <span class="price" id="selectedPrice">-</span>
+                </div>
+                <label for="phone">M-Pesa Phone Number</label>
+                <div class="phone-input">
+                    <span class="phone-prefix">+254</span>
+                    <input type="tel" id="phone" placeholder="7XX XXX XXX" maxlength="9" inputmode="numeric">
+                </div>
+                <button class="btn-pay" id="payBtn" onclick="initiatePayment()">Pay &amp; Connect</button>
             </div>
-            <input type="hidden" name="dst" value="$PORTAL_HOSTNAME$$PORTAL_ORIG_URL$">
-            <input type="hidden" name="popup" value="true">
-            <button type="submit" class="btn-login">Connect to Internet</button>
-        </form>
 
-        <div style="text-align:center; margin: 15px 0;">
-            <span style="color:#888; font-size:14px;">Don't have an account?</span>
-            <a href="/hotspot/packages.html" style="color:#667eea; font-weight:600; text-decoration:none; margin-left:5px;">Buy a Package</a>
+            <!-- Processing -->
+            <div class="processing" id="pkgProcessing">
+                <div class="spinner"></div>
+                <h3>Waiting for Payment...</h3>
+                <p>Check your phone for the M-Pesa prompt.<br>Enter your PIN to complete.</p>
+            </div>
+
+            <!-- Success + Auto-login -->
+            <div class="success" id="pkgSuccess">
+                <div class="icon">✅</div>
+                <h3>Connected!</h3>
+                <p>You're online. Enjoy the internet!</p>
+                <div class="credentials">
+                    <div class="row">
+                        <span class="label">Package</span>
+                        <span class="value" id="credPackage">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">Username</span>
+                        <span class="value" id="credUser">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">Password</span>
+                        <span class="value" id="credPass">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">Expires</span>
+                        <span class="value" id="credExpiry">-</span>
+                    </div>
+                </div>
+                <p style="font-size:12px; color:#aaa;">Save these — you can reuse them while your package is active.</p>
+            </div>
         </div>
 
-        <div class="info-box">
-            <strong>Need help?</strong><br>
-            Contact us: 07XX XXX XXX<br>
-            Or visit: <strong>main.spidmax.win</strong>
+        <!-- ==================== LOGIN SECTION (returning users) ==================== -->
+        <div class="section" id="section-login">
+            <div class="login-form">
+                <h3>Welcome Back</h3>
+                <p class="subtitle">Enter your credentials to reconnect</p>
+                <div class="login-error" id="loginError">Invalid username or password. Please try again.</div>
+                <form method="post" action="$PORTAL_ACTION$" id="loginForm">
+                    <div class="form-group">
+                        <label for="loginUser">Username</label>
+                        <input type="text" id="loginUser" name="username" placeholder="Your username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPass">Password</label>
+                        <input type="password" id="loginPass" name="password" placeholder="Your password" required>
+                    </div>
+                    <input type="hidden" name="dst" value="$PORTAL_HOSTNAME$$PORTAL_ORIG_URL$">
+                    <input type="hidden" name="popup" value="true">
+                    <button type="submit" class="btn-login" id="loginBtn">Connect</button>
+                </form>
+                <div style="text-align:center; margin-top:20px;">
+                    <a href="#" onclick="switchTab('buy'); return false;" style="color:#667eea; font-size:13px; text-decoration:none; font-weight:500;">
+                        Don't have credentials? Buy a package →
+                    </a>
+                </div>
+            </div>
         </div>
 
-        <div class="footer">
-            &copy; 2026 GeorgeISP. All rights reserved.
-        </div>
+        <div class="footer">&copy; 2026 GeorgeISP · Secure M-Pesa payments</div>
     </div>
 
     <script>
-        // Show error message if login failed
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('error') === '1') {
-            document.getElementById('error').style.display = 'block';
+        // ==================== TAB SWITCHING ====================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            if (tab === 'buy') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('section-buy').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('section-login').classList.add('active');
+            }
+        }
+
+        // ==================== PACKAGE SELECTION ====================
+        var selectedPackage = null;
+
+        document.querySelectorAll('.package-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.package-card').forEach(function(c) { c.classList.remove('selected'); });
+                this.classList.add('selected');
+
+                selectedPackage = {
+                    id: this.dataset.id,
+                    name: this.dataset.name,
+                    price: parseInt(this.dataset.price),
+                    speed: parseInt(this.dataset.speed),
+                    data: this.dataset.data
+                };
+
+                document.getElementById('selectedName').textContent = selectedPackage.name + ' — ' + selectedPackage.data;
+                document.getElementById('selectedPrice').textContent = 'KES ' + selectedPackage.price;
+                document.getElementById('pkgStep2').classList.add('visible');
+            });
+        });
+
+        // Phone input — digits only
+        document.getElementById('phone').addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').substring(0, 9);
+        });
+
+        // ==================== INITIATE PAYMENT ====================
+        function initiatePayment() {
+            var phone = document.getElementById('phone').value.trim();
+            if (phone.length < 9) { alert('Enter a valid 9-digit phone number'); return; }
+            if (!selectedPackage) { alert('Please select a package'); return; }
+
+            var payBtn = document.getElementById('payBtn');
+            payBtn.disabled = true;
+            payBtn.textContent = 'Sending...';
+
+            fetch('/api/v1/hotspot/purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: '254' + phone,
+                    packageId: selectedPackage.id,
+                    macAddress: '$MAC_ADDR$',
+                    clientIp: '$CLIENT_IP$'
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    // Show processing
+                    document.getElementById('pkgStep1').style.display = 'none';
+                    document.getElementById('pkgStep2').classList.remove('visible');
+                    document.getElementById('pkgProcessing').classList.add('visible');
+
+                    // Poll for payment confirmation
+                    startPolling(data.reference);
+                } else {
+                    alert(data.message || 'Payment failed. Try again.');
+                    payBtn.disabled = false;
+                    payBtn.textContent = 'Pay & Connect';
+                }
+            })
+            .catch(function() {
+                alert('Network error. Try again.');
+                payBtn.disabled = false;
+                payBtn.textContent = 'Pay & Connect';
+            });
+        }
+
+        // ==================== POLL PAYMENT STATUS ====================
+        function startPolling(reference) {
+            var attempts = 0;
+            var maxAttempts = 60; // 5 minutes
+
+            var interval = setInterval(function() {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(interval);
+                    alert('Payment timed out. Please try again.');
+                    location.reload();
+                    return;
+                }
+
+                fetch('/api/v1/hotspot/status/' + reference)
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.status === 'paid') {
+                        clearInterval(interval);
+                        showSuccess(data);
+                    } else if (data.status === 'failed') {
+                        clearInterval(interval);
+                        alert('Payment was not completed. Please try again.');
+                        location.reload();
+                    }
+                })
+                .catch(function() { /* keep polling */ });
+            }, 5000);
+        }
+
+        // ==================== SHOW SUCCESS + AUTO-LOGIN ====================
+        function showSuccess(data) {
+            document.getElementById('pkgProcessing').classList.remove('visible');
+            document.getElementById('pkgSuccess').classList.add('visible');
+            document.getElementById('credUser').textContent = data.username;
+            document.getElementById('credPass').textContent = data.password;
+            document.getElementById('credPackage').textContent = data.packageName;
+            document.getElementById('credExpiry').textContent = data.expiresAt ? new Date(data.expiresAt).toLocaleString() : '-';
+
+            // Auto-login to MikroTik after 2 seconds
+            setTimeout(function() {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '$PORTAL_ACTION$';
+                form.style.display = 'none';
+
+                var fields = {
+                    'username': data.username,
+                    'password': data.password,
+                    'dst': '$PORTAL_HOSTNAME$$PORTAL_ORIG_URL$',
+                    'popup': 'true'
+                };
+
+                for (var key in fields) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = fields[key];
+                    form.appendChild(input);
+                }
+
+                document.body.appendChild(form);
+                form.submit();
+            }, 2000);
         }
     </script>
 </body>

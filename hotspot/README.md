@@ -1,70 +1,47 @@
-# MikroTik Hotspot Custom Login Page
+# MikroTik Hotspot — GeorgeISP
 
 ## Files
-- `login.html` — Main login page
-- `logout.html` — Logout confirmation
-- `status.html` — Connected session status (shows time, data usage)
+- `login.html` — Single page for both new and returning users
+
+## Features
+- **Tab 1: Buy Package** — select package → enter phone → M-Pesa STK push → auto-login
+- **Tab 2: I Have Credentials** — returning users enter username/password to reconnect
+- Auto-login after payment (no manual credential entry)
+- Mobile-first design
+- M-Pesa payment via ISP billing API
+
+## Packages
+| ID | Name | Price | Speed | Data | Duration |
+|----|------|-------|-------|------|----------|
+| hourly | 1 Hour | KES 20 | 2 Mbps | 500 MB | 1 hour |
+| daily | Day Pass | KES 50 | 3 Mbps | 2 GB | 24 hours |
+| weekly | Weekly | KES 250 | 5 Mbps | 10 GB | 7 days |
+| monthly | Monthly | KES 800 | 5 Mbps | 30 GB | 30 days |
 
 ## Upload to MikroTik
 
-### Option 1: Winbox (easiest)
-1. Open **Winbox** and connect to your MikroTik
-2. Go to **Files** in the left menu
-3. Navigate to `hotspot/` folder
-4. Drag and drop the HTML files into the hotspot folder
-5. Replace existing `login.html`, `logout.html`, `status.html`
+### Via Winbox
+1. Open Winbox → connect to MikroTik
+2. Click **Files** → navigate to `hotspot/`
+3. Upload `login.html` (replaces the default)
 
-### Option 2: FTP
+### Via FTP
 ```bash
 ftp 192.168.88.1
-# user: admin, password: your_password
 cd hotspot
 put login.html
-put logout.html
-put status.html
 quit
 ```
 
-### Option 3: MikroTik Terminal
-```
-/file print
-/file set [find name=hotspot/login.html] contents=...  (paste file content)
-```
-
-### Option 4: Upload via WebFig
-1. Open `http://192.168.88.1` in browser
-2. Go to **Files**
-3. Click **Upload** and select the files
-4. Place them in the `hotspot/` directory
-
-## Customize
-
-### Change branding
-Edit `login.html`:
-- Find `GeorgeISP` → replace with your brand name
-- Find `main.spidmax.win` → replace with your domain
-- Find `07XX XXX XXX` → replace with your support number
-
-### Change colors
-Edit the CSS in `login.html`:
-```css
-/* Purple gradient (current) */
-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-
-/* Blue gradient */
-background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
-
-/* Green gradient */
-background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-
-/* Orange gradient */
-background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-```
-
 ## MikroTik Hotspot Settings
-Make sure these are set:
 ```
 /ip hotspot profile
 set [find] html-directory=hotspot
 set [find] login-by=http-chap
 ```
+
+## Customize
+- `GeorgeISP` → your brand name
+- `main.spidmax.win` → your domain  
+- Package prices/data → edit the HTML data attributes on each `.package-card`
+- Colors → edit the CSS gradient `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`
