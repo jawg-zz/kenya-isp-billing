@@ -5,6 +5,7 @@ import { mpesaService } from './mpesa.service';
 import { radiusService } from './radius.service';
 import { logger } from '../config/logger';
 import { AppError } from '../types';
+import { redactPhone } from '../utils/redact';
 
 interface HotspotPackage {
   id: string;
@@ -103,7 +104,7 @@ class HotspotService {
         },
       });
 
-      logger.info(`Hotspot purchase initiated: ${reference} for ${formattedPhone}, package: ${pkg.name}`);
+      logger.info(`Hotspot purchase initiated: ${reference} for ${redactPhone(formattedPhone)}, package: ${pkg.name}`);
 
       return {
         success: true,

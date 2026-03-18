@@ -1,4 +1,5 @@
 import { Router, IRouter } from 'express';
+import { z } from 'zod';
 import { paymentController } from '../controllers/payment.controller';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -18,6 +19,7 @@ import {
   airtelPaymentSchema,
   cashPaymentSchema,
 } from '../validators/payment.validator';
+import { idParamSchema } from '../validators/common';
 
 const router: IRouter = Router();
 
@@ -129,7 +131,7 @@ router.post('/mpesa/initiate', validate(mpesaSTKPushSchema), paymentController.i
  *       404:
  *         description: Payment not found
  */
-router.get('/mpesa/status/:paymentId', paymentController.checkMpesaStatus);
+router.get('/mpesa/status/:paymentId', validate(z.object({ paymentId: z.string().uuid('Invalid payment ID format') }), 'params'), paymentController.checkMpesaStatus);
 
 /**
  * @swagger
@@ -331,6 +333,6 @@ router.post('/cash', authorize('ADMIN', 'SUPPORT'), validate(cashPaymentSchema),
  *       404:
  *         description: Payment not found
  */
-router.get('/:id', paymentController.getPayment);
+router.get('/:id', validate(idParamSchema, 'params'), paymentController.getPayment);
 
 export default router;

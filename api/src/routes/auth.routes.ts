@@ -52,7 +52,7 @@ const router: IRouter = Router();
  *       409:
  *         description: Email already registered
  */
-router.post('/register', validate(registerSchema), authController.register);
+router.post('/register', authRateLimiter, validate(registerSchema), authController.register);
 
 /**
  * @swagger

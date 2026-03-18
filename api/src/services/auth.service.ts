@@ -7,6 +7,7 @@ import { cache } from '../config/redis';
 import { logger } from '../config/logger';
 import { smsService } from './sms.service';
 import { emailService } from './email.service';
+import { redactEmail, redactPhone } from '../utils/redact';
 import {
   UnauthorizedError,
   ConflictError,
@@ -136,7 +137,7 @@ class AuthService {
       logger.error('Failed to send verification email:', error);
     }
 
-    logger.info(`User registered: ${result.user.email}`);
+    logger.info(`User registered: ${redactEmail(result.user.email)}`);
 
     return { user: result.user, tokens };
   }
@@ -178,7 +179,7 @@ class AuthService {
 
       if (fails >= 5) {
         await cache.set(lockKey, true, 15 * 60); // Lock for 15 min
-        logger.warn(`Account locked after 5 failed attempts: ${email}`);
+        logger.warn(`Account locked after 5 failed attempts: ${redactEmail(email)}`);
       }
 
       throw new UnauthorizedError('Invalid email or password');
@@ -208,7 +209,7 @@ class AuthService {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
-    logger.info(`User logged in: ${user.email}`);
+    logger.info(`User logged in: ${redactEmail(user.email)}`);
 
     return { user: userWithoutPassword, tokens };
   }
@@ -338,9 +339,9 @@ class AuthService {
     // Send email with reset link (primary method)
     try {
       await emailService.sendPasswordResetEmail(user.email, resetToken, user.firstName);
-      logger.info(`Password reset email sent to: ${user.email}`);
+      logger.info(`Password reset email sent to: ${redactEmail(user.email)}`);
     } catch (error) {
-      logger.error(`Failed to send password reset email to: ${user.email}`, error);
+      logger.error(`Failed to send password reset email to: ${redactEmail(user.email)}`, error);
     }
 
     // Also send SMS with reset token (backup method)
@@ -349,9 +350,9 @@ class AuthService {
         to: user.phone,
         message: `Your ISP password reset code: ${resetToken.substring(0, 8)}. Use the link sent to your email to reset your password.`,
       });
-      logger.info(`Password reset SMS sent to: ${user.phone}`);
+      logger.info(`Password reset SMS sent to: ${redactPhone(user.phone)}`);
     } catch (error) {
-      logger.error(`Failed to send password reset SMS to: ${user.phone}`, error);
+      logger.error(`Failed to send password reset SMS to: ${redactPhone(user.phone)}`, error);
     }
   }
 
@@ -441,7 +442,7 @@ class AuthService {
       message: `Your ISP verification code: ${code}. Valid for 15 minutes.`,
     });
 
-    logger.info(`Phone verification code sent to ${user.phone}`);
+    logger.info(`Phone verification code sent to ${redactPhone(user.phone)}`);
   }
 
   // Generate unique customer code

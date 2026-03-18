@@ -3,6 +3,7 @@ import { invoiceController } from '../controllers/invoice.controller';
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { createInvoiceSchema } from '../validators/invoice.validator';
+import { idParamSchema } from '../validators/common';
 
 const router: IRouter = Router();
 
@@ -110,7 +111,7 @@ router.get('/admin/all', authorize('ADMIN', 'SUPPORT'), invoiceController.getAll
  *       404:
  *         description: Invoice not found
  */
-router.get('/admin/:id', authorize('ADMIN', 'SUPPORT'), invoiceController.getAdminInvoice);
+router.get('/admin/:id', authorize('ADMIN', 'SUPPORT'), validate(idParamSchema, 'params'), invoiceController.getAdminInvoice);
 
 /**
  * @swagger
@@ -191,7 +192,7 @@ router.post('/admin/create', authorize('ADMIN'), validate(createInvoiceSchema), 
  *       404:
  *         description: Invoice not found
  */
-router.put('/admin/:id/status', authorize('ADMIN', 'SUPPORT'), invoiceController.updateInvoiceStatus);
+router.put('/admin/:id/status', authorize('ADMIN', 'SUPPORT'), validate(idParamSchema, 'params'), invoiceController.updateInvoiceStatus);
 
 /**
  * @swagger
@@ -283,7 +284,7 @@ router.get('/admin/stats', authorize('ADMIN', 'SUPPORT'), invoiceController.getI
  *       404:
  *         description: Invoice not found
  */
-router.get('/:id', invoiceController.getInvoice);
+router.get('/:id', validate(idParamSchema, 'params'), invoiceController.getInvoice);
 
 /**
  * @swagger
@@ -310,6 +311,6 @@ router.get('/:id', invoiceController.getInvoice);
  *       404:
  *         description: Invoice not found
  */
-router.get('/:id/download', invoiceController.downloadInvoice);
+router.get('/:id/download', validate(idParamSchema, 'params'), invoiceController.downloadInvoice);
 
 export default router;

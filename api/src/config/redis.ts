@@ -79,10 +79,23 @@ export const cache = {
   },
 
   async invalidatePattern(pattern: string): Promise<void> {
-    const keys = await RedisClient.getInstance().keys(pattern);
-    if (keys.length > 0) {
-      await RedisClient.getInstance().del(...keys);
-    }
+    const redis = RedisClient.getInstance();
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        '100'
+      );
+      cursor = nextCursor;
+
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    } while (cursor !== '0');
   },
 
   // Session management

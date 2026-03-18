@@ -1,7 +1,8 @@
-import express, { Express } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import compression from 'compression';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 
@@ -18,6 +19,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { sanitize } from './middleware/validate';
 import { rateLimiter } from './middleware/rateLimiter';
 import { requestTracing } from './middleware/requestTracing';
+import { metricsMiddleware } from './middleware/metrics';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -35,6 +37,7 @@ import adminRoutes from './routes/admin.routes';
 import reportRoutes from './routes/report.routes';
 import notificationSSERoutes from './routes/notificationSSE';
 import hotspotRoutes from './routes/hotspot.routes';
+import metricsRoutes from './routes/metrics.routes';
 import { startScheduler, stopScheduler } from './workers/scheduler';
 
 const app: Express = express();
@@ -44,6 +47,9 @@ app.set('trust proxy', 1);
 
 // Request tracing (must be first to capture timing for all downstream middleware)
 app.use(requestTracing);
+
+// Metrics collection middleware
+app.use(metricsMiddleware);
 
 // Security middleware
 app.use(helmet());
@@ -61,6 +67,14 @@ app.use(morgan('combined', {
   },
 }));
 
+// Compression middleware (exclude SSE endpoint which breaks streaming)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path.startsWith(`${config.apiPrefix}/notifications/stream`)) {
+    return next();
+  }
+  compression()(req, res, next);
+});
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -68,85 +82,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Rate limiting (disabled in development, enabled in production)
-if (config.env === 'production') {
+// Rate limiting (enabled for all environments except test; relaxed in non-production)
+if (config.env !== 'test') {
   app.use(rateLimiter);
 }
 
 // Input sanitization
 app.use(sanitize);
 
-// Health check endpoints
-app.get('/health', async (_req, res) => {
-  const startTime = process.uptime();
-
-  const checks: Record<string, { status: string; latencyMs: number }> = {};
-
-  // Check PostgreSQL
-  const dbStart = Date.now();
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    checks.database = { status: 'ok', latencyMs: Date.now() - dbStart };
-  } catch {
-    checks.database = { status: 'error', latencyMs: Date.now() - dbStart };
-  }
-
-  // Check Redis
-  const redisStart = Date.now();
-  try {
-    await RedisClient.getInstance().ping();
-    checks.redis = { status: 'ok', latencyMs: Date.now() - redisStart };
-  } catch {
-    checks.redis = { status: 'error', latencyMs: Date.now() - redisStart };
-  }
-
-  const allHealthy = Object.values(checks).every((c) => c.status === 'ok');
-
-  res.status(allHealthy ? 200 : 503).json({
-    status: allHealthy ? 'ok' : 'degraded',
-    uptime: startTime,
-    services: checks,
-  });
-});
+// Health check endpoints - use dedicated health routes at both paths
 app.use('/health', healthRoutes);
-
-// Health endpoint at /api/v1/health
-app.get(`${config.apiPrefix}/health`, async (_req, res) => {
-  let dbStatus = 'disconnected';
-  let dbLatency = 0;
-  let redisStatus = 'disconnected';
-  let redisLatency = 0;
-
-  const dbStart = Date.now();
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    dbStatus = 'connected';
-    dbLatency = Date.now() - dbStart;
-  } catch {
-    dbLatency = Date.now() - dbStart;
-  }
-
-  const redisStart = Date.now();
-  try {
-    await RedisClient.getInstance().ping();
-    redisStatus = 'connected';
-    redisLatency = Date.now() - redisStart;
-  } catch {
-    redisLatency = Date.now() - redisStart;
-  }
-
-  const overallStatus = dbStatus === 'connected' && redisStatus === 'connected' ? 'healthy' : 'degraded';
-
-  res.json({
-    status: overallStatus === 'healthy' ? 'ok' : 'error',
-    timestamp: new Date().toISOString(),
-    services: {
-      database: { status: dbStatus, latencyMs: dbLatency },
-      redis: { status: redisStatus, latencyMs: redisLatency },
-      radius: { status: config.radius?.secret ? 'configured' : 'not_configured' },
-    },
-  });
-});
+app.use(`${config.apiPrefix}/health`, healthRoutes);
 
 // Swagger UI - gated behind non-production
 if (config.env !== 'production') {
@@ -183,6 +129,7 @@ app.use(`${config.apiPrefix}/hotspot`, hotspotRoutes);
 app.use(`${config.apiPrefix}/admin`, adminRoutes);
 app.use(`${config.apiPrefix}/reports`, reportRoutes);
 app.use(`${config.apiPrefix}/notifications/stream`, notificationSSERoutes);
+app.use(`${config.apiPrefix}/metrics`, metricsRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -190,7 +137,7 @@ app.use(errorHandler);
 
 // Start server immediately, connect to services in background
 const startServer = async () => {
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     logger.info(`Server running on port ${config.port} in ${config.env} mode`);
     logger.info(`API available at http://localhost:${config.port}${config.apiPrefix}`);
   });
@@ -218,28 +165,44 @@ const startServer = async () => {
   } catch (error) {
     logger.error('Failed to start billing workers scheduler:', error);
   }
+
+  // Graceful shutdown with server.close()
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
+
+  const gracefulShutdown = async (signal: string) => {
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // 1. Stop accepting new connections
+    server.close(async () => {
+      logger.info('HTTP server stopped accepting new connections');
+
+      // 2. Stop the scheduler
+      stopScheduler();
+
+      // 3. Set a hard timeout for forceful shutdown
+      const forceTimeout = setTimeout(() => {
+        logger.error(`Graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms. Forcing exit.`);
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS);
+
+      try {
+        // 4. Close database and Redis connections
+        await prisma.$disconnect();
+        await RedisClient.disconnect();
+        logger.info('Database and Redis connections closed');
+        clearTimeout(forceTimeout);
+        process.exit(0);
+      } catch (error) {
+        logger.error('Error during shutdown:', error);
+        clearTimeout(forceTimeout);
+        process.exit(1);
+      }
+    });
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 };
-
-// Graceful shutdown
-const gracefulShutdown = async (signal: string) => {
-  logger.info(`${signal} received. Shutting down gracefully...`);
-
-  // Stop the scheduler first
-  stopScheduler();
-
-  try {
-    await prisma.$disconnect();
-    await RedisClient.disconnect();
-    logger.info('Database and Redis connections closed');
-    process.exit(0);
-  } catch (error) {
-    logger.error('Error during shutdown:', error);
-    process.exit(1);
-  }
-};
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Handle uncaught errors
 process.on('unhandledRejection', (reason, promise) => {

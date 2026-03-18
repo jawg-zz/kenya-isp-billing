@@ -3,10 +3,11 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../config/database';
 import config from '../config';
 import { logger } from '../config/logger';
+import { cache } from '../config/redis';
 import { AppError, NotFoundError } from '../types';
 import { invoiceService } from './invoice.service';
 import { smsService } from './sms.service';
-import { createNotification } from './notificationHelper';
+import { createNotification } from './notification.service';
 
 interface CreateInvoiceInput {
   customerId: string;
@@ -267,13 +268,29 @@ class BillingService {
       },
     });
 
+    if (subscriptions.length === 0) {
+      return { generated: 0, errors: 0 };
+    }
+
+    // Batch-fetch the most recent invoice for each subscription (fixes N+1)
+    const subscriptionIds = subscriptions.map(s => s.id);
+    const latestInvoicesRaw = await prisma.$queryRaw<{subscriptionId: string, createdAt: Date}[]>`
+      SELECT DISTINCT ON ("subscriptionId") "subscriptionId", "createdAt"
+      FROM invoices
+      WHERE "subscriptionId" = ANY(${subscriptionIds})
+      ORDER BY "subscriptionId", "createdAt" DESC
+    `;
+
+    // Build a map of subscriptionId -> last invoice for fast lookup
+    const lastInvoiceMap = new Map<string, Date>();
+    for (const row of latestInvoicesRaw) {
+      lastInvoiceMap.set(row.subscriptionId, row.createdAt);
+    }
+
     for (const subscription of subscriptions) {
       try {
-        // Check if invoice is due (based on billing cycle)
-        const lastInvoice = await prisma.invoice.findFirst({
-          where: { subscriptionId: subscription.id },
-          orderBy: { createdAt: 'desc' },
-        });
+        const lastInvoiceCreatedAt = lastInvoiceMap.get(subscription.id) || null;
+        const lastInvoice = lastInvoiceCreatedAt ? { createdAt: lastInvoiceCreatedAt } : null;
 
         const shouldInvoice = this.shouldGenerateInvoice(subscription, lastInvoice);
 
@@ -503,20 +520,38 @@ class BillingService {
   // Settle pending invoices for a customer using available balance
   // Returns the number of invoices settled
   async settlePendingInvoicesForCustomer(customerId: string): Promise<{ settled: number }> {
+    // Fetch all pending invoices and current balance in parallel
+    const [pendingInvoices, customer] = await Promise.all([
+      prisma.invoice.findMany({
+        where: {
+          customerId,
+          status: 'PENDING',
+        },
+        orderBy: { dueDate: 'asc' },
+      }),
+      prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { balance: true },
+      }),
+    ]);
+
+    if (!customer || pendingInvoices.length === 0) {
+      return { settled: 0 };
+    }
+
     let settled = 0;
+    let remainingBalance = Number(customer.balance);
 
-    const pendingInvoices = await prisma.invoice.findMany({
-      where: {
-        customerId,
-        status: 'PENDING',
-      },
-      orderBy: { dueDate: 'asc' },
-      include: { customer: true },
-    });
-
+    // Process invoices within a single transaction where possible
+    // Group consecutive affordable invoices into one transaction
     for (const invoice of pendingInvoices) {
+      const invoiceAmount = Number(invoice.totalAmount);
+
+      if (remainingBalance < invoiceAmount) {
+        continue; // Can't afford this one, skip
+      }
+
       try {
-        // Use the same atomic transaction as processPendingInvoices
         await prisma.$transaction(async (tx) => {
           // Step 1: Atomically mark invoice as PAID only if still pending
           const invoiceUpdateResult = await tx.invoice.updateMany({
@@ -526,12 +561,12 @@ class BillingService {
 
           if (invoiceUpdateResult.count === 0) return;
 
-          // Step 2: Decrement balance
+          // Step 2: Decrement balance atomically
           const decrementResult = await tx.$executeRaw`
             UPDATE customers
-            SET balance = balance - ${invoice.totalAmount}
-            WHERE id = ${invoice.customerId}
-              AND balance >= ${invoice.totalAmount}
+            SET balance = balance - ${invoiceAmount}
+            WHERE id = ${customerId}
+              AND balance >= ${invoiceAmount}
           `;
 
           if (decrementResult === 0) {
@@ -548,7 +583,7 @@ class BillingService {
               paymentNumber: `AUTO-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
               customerId: invoice.customerId,
               invoiceId: invoice.id,
-              amount: invoice.totalAmount,
+              amount: invoiceAmount,
               method: 'BALANCE',
               status: 'COMPLETED',
               processedAt: new Date(),
@@ -560,6 +595,7 @@ class BillingService {
           });
 
           settled++;
+          remainingBalance -= invoiceAmount;
         });
       } catch (error) {
         logger.error(`Error settling invoice ${invoice.id}:`, error);
@@ -571,6 +607,11 @@ class BillingService {
 
   // Get customer billing summary
   async getCustomerBillingSummary(customerId: string): Promise<any> {
+    const cacheKey = `billing:summary:${customerId}`;
+    const cached = await cache.get<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
       include: {
@@ -627,13 +668,18 @@ class BillingService {
       },
     });
 
-    return {
+    const result = {
       customer: {
         ...customer,
         pendingAmount: pendingInvoices._sum.totalAmount || 0,
         totalSpent: totalSpent._sum.amount || 0,
       },
     };
+
+    // Cache for 1 minute
+    await cache.set(cacheKey, result, 60);
+
+    return result;
   }
 }
 

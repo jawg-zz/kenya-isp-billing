@@ -3,6 +3,7 @@ import { planController } from '../controllers/plan.controller';
 import { authenticate, authorize, optionalAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { createPlanSchema, updatePlanSchema } from '../validators/plan.validator';
+import { idParamSchema } from '../validators/common';
 
 const router: IRouter = Router();
 
@@ -97,7 +98,7 @@ router.get('/featured', planController.getFeaturedPlans);
  *       404:
  *         description: Plan not found
  */
-router.get('/:id', planController.getPlan);
+router.get('/:id', validate(idParamSchema, 'params'), planController.getPlan);
 
 // Admin routes
 router.use(authenticate);
@@ -166,7 +167,7 @@ router.post('/', authorize('ADMIN'), validate(createPlanSchema), planController.
  *       404:
  *         description: Plan not found
  */
-router.put('/:id', authorize('ADMIN'), validate(updatePlanSchema), planController.updatePlan);
+router.put('/:id', authorize('ADMIN'), validate(idParamSchema, 'params'), validate(updatePlanSchema), planController.updatePlan);
 
 /**
  * @swagger
@@ -191,6 +192,6 @@ router.put('/:id', authorize('ADMIN'), validate(updatePlanSchema), planControlle
  *       403:
  *         description: Forbidden
  */
-router.delete('/:id', authorize('ADMIN'), planController.deletePlan);
+router.delete('/:id', authorize('ADMIN'), validate(idParamSchema, 'params'), planController.deletePlan);
 
 export default router;

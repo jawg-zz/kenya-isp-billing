@@ -1,8 +1,9 @@
 import { prisma } from '../config/database';
 import { cache } from '../config/redis';
+import { cacheAsideWithMutex } from '../utils/cacheMutex';
 import { logger } from '../config/logger';
 import { NotFoundError, UsageStats } from '../types';
-import { createNotification } from './notificationHelper';
+import { createNotification } from './notification.service';
 
 interface UsageSummary {
   daily: {
@@ -120,46 +121,40 @@ class UsageService {
 
   // Get real-time usage stats
   async getRealtimeUsage(customerId: string): Promise<UsageStats> {
-    // Try cache first
-    const cacheKey = `usage:realtime:${customerId}`;
-    const cached = await cache.get<UsageStats>(cacheKey);
-    if (cached) {
-      return cached;
-    }
+    return cacheAsideWithMutex<UsageStats>({
+      key: `usage:realtime:${customerId}`,
+      ttlSeconds: 30,
+      fetcher: async () => {
+        const subscription = await prisma.subscription.findFirst({
+          where: {
+            customerId,
+            status: 'ACTIVE',
+          },
+          include: {
+            plan: true,
+          },
+        });
 
-    const subscription = await prisma.subscription.findFirst({
-      where: {
-        customerId,
-        status: 'ACTIVE',
-      },
-      include: {
-        plan: true,
+        if (!subscription) {
+          throw new NotFoundError('No active subscription found');
+        }
+
+        const plan = subscription.plan;
+        const dataAllowance = plan.dataAllowance ? Number(plan.dataAllowance) : null;
+        const fupThreshold = plan.fupThreshold ? Number(plan.fupThreshold) : null;
+
+        const totalUsed = Number(subscription.dataUsed) || 0;
+        const totalRemaining = dataAllowance ? Math.max(0, dataAllowance - totalUsed) : null;
+        const percentageUsed = dataAllowance ? (totalUsed / dataAllowance) * 100 : 0;
+
+        return {
+          totalUsed,
+          totalRemaining: totalRemaining || 0,
+          percentageUsed: Math.round(percentageUsed * 100) / 100,
+          isFupThresholdReached: fupThreshold ? totalUsed >= fupThreshold : false,
+        };
       },
     });
-
-    if (!subscription) {
-      throw new NotFoundError('No active subscription found');
-    }
-
-    const plan = subscription.plan;
-    const dataAllowance = plan.dataAllowance ? Number(plan.dataAllowance) : null;
-    const fupThreshold = plan.fupThreshold ? Number(plan.fupThreshold) : null;
-
-    const totalUsed = Number(subscription.dataUsed) || 0;
-    const totalRemaining = dataAllowance ? Math.max(0, dataAllowance - totalUsed) : null;
-    const percentageUsed = dataAllowance ? (totalUsed / dataAllowance) * 100 : 0;
-
-    const result: UsageStats = {
-      totalUsed,
-      totalRemaining: totalRemaining || 0,
-      percentageUsed: Math.round(percentageUsed * 100) / 100,
-      isFupThresholdReached: fupThreshold ? totalUsed >= fupThreshold : false,
-    };
-
-    // Cache for 30 seconds
-    await cache.set(cacheKey, result, 30);
-
-    return result;
   }
 
   // Track bandwidth usage (called from RADIUS accounting)

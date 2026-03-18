@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
+import { cache } from '../config/redis';
 import { AuthenticatedRequest, ApiResponse, NotFoundError } from '../types';
 
 class PlanController {
-  // Get all plans (public)
+  // Get all plans (public) — cached 5 min for unfiltered queries
   async getPlans(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const type = req.query.type as string;
@@ -12,6 +13,14 @@ class PlanController {
       const where: any = { isActive: true };
       if (type) where.type = type;
       if (dataType) where.dataType = dataType;
+
+      // Cache only the unfiltered active plans list (most common query)
+      const cacheKey = `plans:active:${type || 'all'}:${dataType || 'all'}`;
+      const cached = await cache.get<any>(cacheKey);
+      if (cached) {
+        res.json({ success: true, data: { plans: cached } });
+        return;
+      }
 
       const plans = await prisma.plan.findMany({
         where,
@@ -22,6 +31,9 @@ class PlanController {
         },
         orderBy: { sortOrder: 'asc' },
       });
+
+      // Cache for 5 minutes
+      await cache.set(cacheKey, plans, 300);
 
       const response: ApiResponse = {
         success: true,

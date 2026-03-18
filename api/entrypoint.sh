@@ -1,7 +1,9 @@
 #!/bin/sh
 
-echo "🔄 Syncing database schema..."
-npx prisma db push --accept-data-loss 2>&1
+echo "🔄 Running database migrations..."
+# Use 'migrate deploy' for production-safe migrations (applies pending migrations only)
+# For development use, uncomment: npx prisma db push --accept-data-loss
+npx prisma migrate deploy 2>&1
 
 echo "🌱 Seeding database..."
 node dist/utils/seed.js 2>&1 || echo "⚠️ Seed skipped"

@@ -8,37 +8,23 @@ import { AuthenticatedRequest, TokenPayload } from '../types';
 const router = Router();
 
 // SSE endpoint for real-time notifications
-// Accepts token via query param (EventSource can't send custom headers)
+// Token must be passed via Authorization header (prevents token leakage in logs/history)
 router.get('/subscribe', async (req, res) => {
   try {
-    // Authenticate via query param token or Authorization header
-    let userId: string | null = null;
-    const token = req.query.token as string;
+    // Authenticate via Authorization header only
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'No token provided. Use Authorization: Bearer <token>' });
+      return;
+    }
 
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, config.jwt.secret) as TokenPayload;
-        userId = decoded.id;
-      } catch {
-        res.status(401).json({ error: 'Invalid token' });
-        return;
-      }
-    } else {
-      // Fall back to Bearer header
-      const authReq = req as AuthenticatedRequest;
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          const decoded = jwt.verify(authHeader.split(' ')[1], config.jwt.secret) as TokenPayload;
-          userId = decoded.id;
-        } catch {
-          res.status(401).json({ error: 'Invalid token' });
-          return;
-        }
-      } else {
-        res.status(401).json({ error: 'No token provided' });
-        return;
-      }
+    let userId: string | null = null;
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], config.jwt.secret) as TokenPayload;
+      userId = decoded.id;
+    } catch {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
     }
 
     if (!userId) {

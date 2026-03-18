@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { hotspotService } from '../services/hotspot.service';
 import { logger } from '../config/logger';
 import { AppError } from '../types';
+import { paymentRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get('/packages', (req: Request, res: Response) => {
 });
 
 // POST /api/v1/hotspot/purchase — initiate purchase (STK push)
-router.post('/purchase', async (req: Request, res: Response) => {
+router.post('/purchase', paymentRateLimiter, async (req: Request, res: Response) => {
   try {
     const { phone, packageId, macAddress, clientIp } = req.body;
 

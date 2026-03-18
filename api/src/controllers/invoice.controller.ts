@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import fs from 'fs';
 import { prisma } from '../config/database';
 import { cache } from '../config/redis';
+import { cacheAsideWithMutex } from '../utils/cacheMutex';
 import { invoiceService } from '../services/invoice.service';
 import { generateInvoicePDF } from '../templates/invoice-pdf';
 import config from '../config';
@@ -329,55 +330,50 @@ class InvoiceController {
     }
   }
 
-  // Get invoice stats (admin) — cached 5 min
+  // Get invoice stats (admin) — cached 5 min with mutex protection
   async getInvoiceStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const cacheKey = 'admin:invoice-stats';
+      const data = await cacheAsideWithMutex({
+        key: 'admin:invoice-stats',
+        ttlSeconds: 300,
+        fetcher: async () => {
+          const [
+            totalInvoices,
+            paidInvoices,
+            pendingInvoices,
+            overdueInvoices,
+            totalAmount,
+            paidAmount,
+            pendingAmount,
+          ] = await Promise.all([
+            prisma.invoice.count(),
+            prisma.invoice.count({ where: { status: 'PAID' } }),
+            prisma.invoice.count({ where: { status: 'PENDING' } }),
+            prisma.invoice.count({ where: { status: 'OVERDUE' } }),
+            prisma.invoice.aggregate({
+              _sum: { totalAmount: true },
+            }),
+            prisma.invoice.aggregate({
+              where: { status: 'PAID' },
+              _sum: { totalAmount: true },
+            }),
+            prisma.invoice.aggregate({
+              where: { status: 'PENDING' },
+              _sum: { totalAmount: true },
+            }),
+          ]);
 
-      const cached = await cache.get<any>(cacheKey);
-      if (cached) {
-        res.json({ success: true, data: cached });
-        return;
-      }
-
-      const [
-        totalInvoices,
-        paidInvoices,
-        pendingInvoices,
-        overdueInvoices,
-        totalAmount,
-        paidAmount,
-        pendingAmount,
-      ] = await Promise.all([
-        prisma.invoice.count(),
-        prisma.invoice.count({ where: { status: 'PAID' } }),
-        prisma.invoice.count({ where: { status: 'PENDING' } }),
-        prisma.invoice.count({ where: { status: 'OVERDUE' } }),
-        prisma.invoice.aggregate({
-          _sum: { totalAmount: true },
-        }),
-        prisma.invoice.aggregate({
-          where: { status: 'PAID' },
-          _sum: { totalAmount: true },
-        }),
-        prisma.invoice.aggregate({
-          where: { status: 'PENDING' },
-          _sum: { totalAmount: true },
-        }),
-      ]);
-
-      const data = {
-        totalInvoices,
-        paidInvoices,
-        pendingInvoices,
-        overdueInvoices,
-        totalAmount: Number(totalAmount._sum.totalAmount) || 0,
-        paidAmount: Number(paidAmount._sum.totalAmount) || 0,
-        pendingAmount: Number(pendingAmount._sum.totalAmount) || 0,
-      };
-
-      // Cache for 5 minutes
-      await cache.set(cacheKey, data, 300);
+          return {
+            totalInvoices,
+            paidInvoices,
+            pendingInvoices,
+            overdueInvoices,
+            totalAmount: Number(totalAmount._sum.totalAmount) || 0,
+            paidAmount: Number(paidAmount._sum.totalAmount) || 0,
+            pendingAmount: Number(pendingAmount._sum.totalAmount) || 0,
+          };
+        },
+      });
 
       const response: ApiResponse = {
         success: true,

@@ -43,6 +43,42 @@ const radiusIpAllowlist = (req: Request, res: Response, next: NextFunction): voi
   }
 };
 
+/**
+ * @swagger
+ * tags:
+ *   name: RADIUS
+ *   description: RADIUS authentication, accounting, and session management
+ */
+
+/**
+ * @swagger
+ * /radius/sessions:
+ *   get:
+ *     summary: Get RADIUS sessions (admin)
+ *     tags: [RADIUS]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Paginated RADIUS sessions
+ *       403:
+ *         description: Forbidden
+ */
 // Admin routes - get RADIUS sessions
 router.get('/sessions', authenticate, authorize('ADMIN', 'SUPPORT'), async (req: Request, res: Response) => {
   try {

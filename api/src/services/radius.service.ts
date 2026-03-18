@@ -6,6 +6,7 @@ import config from '../config';
 import { logger } from '../config/logger';
 import { AppError } from '../types';
 import { cache } from '../config/redis';
+import { cacheAsideWithMutex } from '../utils/cacheMutex';
 
 interface RadiusAuthRequest {
   username: string;
@@ -165,55 +166,52 @@ class RadiusService {
   }> {
     logger.info(`RADIUS Access-Request for ${request.username} from ${request.nasIpAddress}`);
 
-    // Check cache first
-    const cachedInfo = await cache.get<UserInfo>(`radius:user:${request.username}`);
-    
-    let userInfo: UserInfo | null = cachedInfo ? {
-      ...cachedInfo,
-      accountStatus: cachedInfo.accountStatus ?? 'INACTIVE',
-    } as UserInfo : null;
-    
-    if (!userInfo) {
-      // Fetch from database
-      const radiusConfig = await prisma.radiusConfig.findUnique({
-        where: { username: request.username },
-        include: {
-          customer: {
-            include: {
-              user: {
-                select: { accountStatus: true },
-              },
-              subscriptions: {
-                where: { status: 'ACTIVE' },
-                include: { plan: true },
-                orderBy: { createdAt: 'desc' },
-                take: 1,
+    // Use cache-aside with mutex to prevent stampede
+    const userInfo = await cacheAsideWithMutex<UserInfo>({
+      key: `radius:user:${request.username}`,
+      ttlSeconds: 60,
+      fetcher: async () => {
+        const radiusConfig = await prisma.radiusConfig.findUnique({
+          where: { username: request.username },
+          include: {
+            customer: {
+              include: {
+                user: {
+                  select: { accountStatus: true },
+                },
+                subscriptions: {
+                  where: { status: 'ACTIVE' },
+                  include: { plan: true },
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      if (!radiusConfig || !radiusConfig.isActive) {
-        logger.warn(`RADIUS auth failed: user not found or inactive - ${request.username}`);
-        return { accept: false };
-      }
+        if (!radiusConfig || !radiusConfig.isActive) {
+          throw new AppError('RADIUS user not found or inactive', 401);
+        }
 
-      const subscription = radiusConfig.customer.subscriptions[0];
+        const subscription = radiusConfig.customer.subscriptions[0];
 
-      userInfo = {
-        username: radiusConfig.username,
-        password: radiusConfig.password,
-        isActive: radiusConfig.isActive,
-        dataRemaining: subscription?.dataRemaining != null ? Number(subscription.dataRemaining) : null,
-        speedLimit: subscription?.plan.speedLimit ?? null,
-        fupSpeedLimit: subscription?.plan.fupSpeedLimit ?? null,
-        subscriptionActive: !!subscription && subscription.status === 'ACTIVE',
-        accountStatus: radiusConfig.customer.user?.accountStatus ?? 'INACTIVE',
-      };
+        return {
+          username: radiusConfig.username,
+          password: radiusConfig.password,
+          isActive: radiusConfig.isActive,
+          dataRemaining: subscription?.dataRemaining != null ? Number(subscription.dataRemaining) : null,
+          speedLimit: subscription?.plan.speedLimit ?? null,
+          fupSpeedLimit: subscription?.plan.fupSpeedLimit ?? null,
+          subscriptionActive: !!subscription && subscription.status === 'ACTIVE',
+          accountStatus: radiusConfig.customer.user?.accountStatus ?? 'INACTIVE',
+        };
+      },
+    }).catch(() => null);
 
-      // Cache for 60 seconds to avoid stale auth decisions when subscription status changes
-      await cache.set(`radius:user:${request.username}`, userInfo, 60);
+    if (!userInfo) {
+      logger.warn(`RADIUS auth failed: user not found or inactive - ${request.username}`);
+      return { accept: false };
     }
 
     // Verify password (compare against bcrypt hash)

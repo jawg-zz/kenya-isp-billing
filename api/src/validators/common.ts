@@ -86,6 +86,11 @@ export const countySchema = z
 /** UUID */
 export const uuidSchema = z.string().uuid('Invalid UUID format');
 
+/** Shared schema for validating :id route params as UUIDs */
+export const idParamSchema = z.object({
+  id: z.string().uuid('Invalid ID format'),
+});
+
 /** Positive decimal (number) */
 export const positiveDecimal = (fieldName: string, opts?: { min?: number; max?: number }) => {
   let schema = z.number().positive(`${fieldName} must be a positive number`);

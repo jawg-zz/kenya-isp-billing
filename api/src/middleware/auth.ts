@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import config from '../config';
 import { prisma } from '../config/database';
 import { AuthenticatedRequest, UnauthorizedError, TokenPayload } from '../types';
+import { createChildLogger } from './requestTracing';
 
 export const authenticate = async (
   req: AuthenticatedRequest,
@@ -42,6 +43,11 @@ export const authenticate = async (
       email: user.email,
       role: user.role,
     };
+
+    // Update the request-scoped logger with userId for correlation
+    if (req.id) {
+      (req as any).log = createChildLogger(req.id, user.id);
+    }
 
     next();
   } catch (error) {

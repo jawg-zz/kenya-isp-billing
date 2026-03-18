@@ -6,6 +6,7 @@ import {
   createSubscriptionSchema,
   cancelSubscriptionSchema,
 } from '../validators/subscription.validator';
+import { idParamSchema } from '../validators/common';
 
 const router: IRouter = Router();
 
@@ -68,7 +69,7 @@ router.get('/', subscriptionController.getSubscriptions);
  *       404:
  *         description: Subscription not found
  */
-router.get('/:id', subscriptionController.getSubscription);
+router.get('/:id', validate(idParamSchema, 'params'), subscriptionController.getSubscription);
 
 /**
  * @swagger

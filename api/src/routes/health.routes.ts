@@ -15,8 +15,13 @@ router.get('/', async (_req: Request, res: Response) => {
   });
 });
 
-// Detailed health check with service status
+// Detailed health check with service status — restricted to non-production
 router.get('/detailed', async (_req: Request, res: Response) => {
+  // In production, hide detailed infrastructure info to avoid information leakage
+  if (config.env === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
   const checks: Record<string, { status: string; latencyMs?: number; error?: string }> = {};
 
   // Check PostgreSQL

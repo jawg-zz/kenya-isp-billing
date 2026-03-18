@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { cache } from '../config/redis';
 import { logger } from '../config/logger';
 import { smsService } from '../services/sms.service';
 import { radiusService } from '../services/radius.service';
@@ -25,25 +26,32 @@ export async function runAutoSuspend(): Promise<{
   logger.info('[AutoSuspend] Starting auto-suspend run...');
 
   try {
-    // Read system settings
-    const [autoSuspendSetting, graceDaysSetting] = await Promise.all([
-      prisma.systemSetting.findUnique({ where: { key: 'auto_suspend_overdue' } }),
-      prisma.systemSetting.findUnique({ where: { key: 'auto_suspend_grace_days' } }),
-    ]);
+    // Read system settings (cached 5 min)
+    const cacheKey = 'system:settings:auto_suspend';
+    let settings = await cache.get<{ autoSuspendEnabled: boolean; graceDays: number }>(cacheKey);
+
+    if (!settings) {
+      const [autoSuspendSetting, graceDaysSetting] = await Promise.all([
+        prisma.systemSetting.findUnique({ where: { key: 'auto_suspend_overdue' } }),
+        prisma.systemSetting.findUnique({ where: { key: 'auto_suspend_grace_days' } }),
+      ]);
+
+      const autoSuspendEnabled = autoSuspendSetting?.value?.toLowerCase() === 'true';
+      const graceDays = parseInt(graceDaysSetting?.value || '3', 10);
+      const effectiveGraceDays = isNaN(graceDays) || graceDays < 0 ? 3 : graceDays;
+
+      settings = { autoSuspendEnabled, graceDays: effectiveGraceDays };
+      await cache.set(cacheKey, settings, 300); // 5 min TTL
+    }
 
     // Check if auto-suspend is enabled
-    const autoSuspendEnabled = autoSuspendSetting?.value?.toLowerCase() === 'true';
-    if (!autoSuspendEnabled) {
+    if (!settings.autoSuspendEnabled) {
       logger.info('[AutoSuspend] Auto-suspend is disabled. Skipping run.');
       return { checked: 0, suspended: 0, skipped: 0, errors: 0 };
     }
 
     // Get grace days (default to 3 if not set)
-    const graceDays = parseInt(graceDaysSetting?.value || '3', 10);
-    if (isNaN(graceDays) || graceDays < 0) {
-      logger.warn(`[AutoSuspend] Invalid grace days value: "${graceDaysSetting?.value}". Using default of 3.`);
-    }
-    const effectiveGraceDays = isNaN(graceDays) || graceDays < 0 ? 3 : graceDays;
+    const effectiveGraceDays = settings.graceDays;
 
     logger.info(`[AutoSuspend] Auto-suspend enabled. Grace period: ${effectiveGraceDays} days`);
 

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
+import { reportRateLimiter } from '../middleware/rateLimiter';
 import { reportService } from '../services/report.service';
 import { customerReportToPDF, usageReportToPDF, paymentReportToPDF } from '../templates/report-pdf';
 import { AuthenticatedRequest, ApiResponse } from '../types';
@@ -7,13 +8,47 @@ import { logger } from '../config/logger';
 
 const router = Router();
 
-// All report routes require authentication + ADMIN role
+// All report routes require authentication + ADMIN role + rate limiting
 router.use(authenticate);
 router.use(authorize('ADMIN'));
+router.use(reportRateLimiter);
 
 /**
- * GET /api/v1/reports/customers/registration-trends
- * Customer registration trends over time
+ * @swagger
+ * tags:
+ *   name: Reports
+ *   description: Business analytics and reporting
+ */
+
+/**
+ * @swagger
+ * /reports/customers/registration-trends:
+ *   get:
+ *     summary: Get customer registration trends
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: Registration trend data
+ *       403:
+ *         description: Forbidden
  */
 router.get('/customers/registration-trends', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -28,8 +63,32 @@ router.get('/customers/registration-trends', async (req: AuthenticatedRequest, r
 });
 
 /**
- * GET /api/v1/reports/customers/churn-analysis
- * Churn analysis - terminated/suspended customers over time
+ * @swagger
+ * /reports/customers/churn-analysis:
+ *   get:
+ *     summary: Get customer churn analysis
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: Churn analysis data
  */
 router.get('/customers/churn-analysis', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -44,8 +103,16 @@ router.get('/customers/churn-analysis', async (req: AuthenticatedRequest, res: R
 });
 
 /**
- * GET /api/v1/reports/customers/geographic
- * Geographic distribution by Kenyan county
+ * @swagger
+ * /reports/customers/geographic:
+ *   get:
+ *     summary: Get geographic customer distribution by county
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Geographic distribution data
  */
 router.get('/customers/geographic', async (_req: AuthenticatedRequest, res: Response) => {
   try {
@@ -59,8 +126,16 @@ router.get('/customers/geographic', async (_req: AuthenticatedRequest, res: Resp
 });
 
 /**
- * GET /api/v1/reports/customers/status
- * Customer status breakdown
+ * @swagger
+ * /reports/customers/status:
+ *   get:
+ *     summary: Get customer status breakdown
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Customer status breakdown
  */
 router.get('/customers/status', async (_req: AuthenticatedRequest, res: Response) => {
   try {
@@ -74,8 +149,36 @@ router.get('/customers/status', async (_req: AuthenticatedRequest, res: Response
 });
 
 /**
- * GET /api/v1/reports/customers/export
- * Export customer report as CSV
+ * @swagger
+ * /reports/customers/export:
+ *   get:
+ *     summary: Export customer report as CSV
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
  */
 router.get('/customers/export', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -110,8 +213,32 @@ router.get('/customers/export', async (req: AuthenticatedRequest, res: Response)
 });
 
 /**
- * GET /api/v1/reports/customers/export-pdf
- * Export customer report as PDF
+ * @swagger
+ * /reports/customers/export-pdf:
+ *   get:
+ *     summary: Export customer report as PDF
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
  */
 router.get('/customers/export-pdf', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -131,8 +258,32 @@ router.get('/customers/export-pdf', async (req: AuthenticatedRequest, res: Respo
 // ===== USAGE REPORTS =====
 
 /**
- * GET /api/v1/reports/usage/bandwidth
- * Total bandwidth consumed over time
+ * @swagger
+ * /reports/usage/bandwidth:
+ *   get:
+ *     summary: Get total bandwidth consumed over time
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: Bandwidth usage data
  */
 router.get('/usage/bandwidth', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -147,8 +298,32 @@ router.get('/usage/bandwidth', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
- * GET /api/v1/reports/usage/top-users
- * Top N users by data consumption
+ * @swagger
+ * /reports/usage/top-users:
+ *   get:
+ *     summary: Get top users by data consumption
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: topN
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Top users data
  */
 router.get('/usage/top-users', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -163,8 +338,27 @@ router.get('/usage/top-users', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
- * GET /api/v1/reports/usage/peak-hours
- * Peak usage times (hourly distribution)
+ * @swagger
+ * /reports/usage/peak-hours:
+ *   get:
+ *     summary: Get peak usage times (hourly distribution)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Peak usage hours data
  */
 router.get('/usage/peak-hours', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -179,8 +373,27 @@ router.get('/usage/peak-hours', async (req: AuthenticatedRequest, res: Response)
 });
 
 /**
- * GET /api/v1/reports/usage/by-plan
- * Average usage per plan type
+ * @swagger
+ * /reports/usage/by-plan:
+ *   get:
+ *     summary: Get average usage per plan type
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Usage by plan data
  */
 router.get('/usage/by-plan', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -195,8 +408,20 @@ router.get('/usage/by-plan', async (req: AuthenticatedRequest, res: Response) =>
 });
 
 /**
- * GET /api/v1/reports/usage/export
- * Export usage report as CSV
+ * @swagger
+ * /reports/usage/export:
+ *   get:
+ *     summary: Export usage report as CSV
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
  */
 router.get('/usage/export', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -231,8 +456,21 @@ router.get('/usage/export', async (req: AuthenticatedRequest, res: Response) => 
 });
 
 /**
- * GET /api/v1/reports/usage/export-pdf
- * Export usage report as PDF
+ * @swagger
+ * /reports/usage/export-pdf:
+ *   get:
+ *     summary: Export usage report as PDF
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
  */
 router.get('/usage/export-pdf', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -252,8 +490,32 @@ router.get('/usage/export-pdf', async (req: AuthenticatedRequest, res: Response)
 // ===== PAYMENT REPORTS =====
 
 /**
- * GET /api/v1/reports/payments/collection-rate
- * Collection rate over time
+ * @swagger
+ * /reports/payments/collection-rate:
+ *   get:
+ *     summary: Get collection rate over time
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: Collection rate data
  */
 router.get('/payments/collection-rate', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -268,8 +530,27 @@ router.get('/payments/collection-rate', async (req: AuthenticatedRequest, res: R
 });
 
 /**
- * GET /api/v1/reports/payments/avg-days-to-payment
- * Average days from invoice to payment
+ * @swagger
+ * /reports/payments/avg-days-to-payment:
+ *   get:
+ *     summary: Get average days from invoice to payment
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Average days to payment data
  */
 router.get('/payments/avg-days-to-payment', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -284,8 +565,27 @@ router.get('/payments/avg-days-to-payment', async (req: AuthenticatedRequest, re
 });
 
 /**
- * GET /api/v1/reports/payments/method-breakdown
- * Payment method breakdown (M-Pesa vs Airtel vs Cash vs Bank)
+ * @swagger
+ * /reports/payments/method-breakdown:
+ *   get:
+ *     summary: Get payment method breakdown (M-Pesa, Airtel, Cash, Bank)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Payment method breakdown data
  */
 router.get('/payments/method-breakdown', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -300,8 +600,27 @@ router.get('/payments/method-breakdown', async (req: AuthenticatedRequest, res: 
 });
 
 /**
- * GET /api/v1/reports/payments/failed-rate
- * Failed payment rate and common failure reasons
+ * @swagger
+ * /reports/payments/failed-rate:
+ *   get:
+ *     summary: Get failed payment rate and common failure reasons
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Failed payment rate data
  */
 router.get('/payments/failed-rate', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -316,8 +635,32 @@ router.get('/payments/failed-rate', async (req: AuthenticatedRequest, res: Respo
 });
 
 /**
- * GET /api/v1/reports/payments/revenue-vs-outstanding
- * Revenue vs outstanding trend
+ * @swagger
+ * /reports/payments/revenue-vs-outstanding:
+ *   get:
+ *     summary: Get revenue vs outstanding trend
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month]
+ *     responses:
+ *       200:
+ *         description: Revenue vs outstanding data
  */
 router.get('/payments/revenue-vs-outstanding', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -332,8 +675,20 @@ router.get('/payments/revenue-vs-outstanding', async (req: AuthenticatedRequest,
 });
 
 /**
- * GET /api/v1/reports/payments/export
- * Export payment report as CSV
+ * @swagger
+ * /reports/payments/export:
+ *   get:
+ *     summary: Export payment report as CSV
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
  */
 router.get('/payments/export', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -372,8 +727,21 @@ router.get('/payments/export', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
- * GET /api/v1/reports/payments/export-pdf
- * Export payment report as PDF
+ * @swagger
+ * /reports/payments/export-pdf:
+ *   get:
+ *     summary: Export payment report as PDF
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
  */
 router.get('/payments/export-pdf', async (req: AuthenticatedRequest, res: Response) => {
   try {

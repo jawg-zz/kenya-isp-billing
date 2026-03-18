@@ -272,6 +272,7 @@ model Subscription {
   userId       String?
 
   @@index([customerId])
+  @@index([userId])
   @@index([status])
   @@index([endDate])
   @@map("subscriptions")
@@ -303,9 +304,11 @@ model Invoice {
   payments Payment[]
 
   @@index([customerId])
+  @@index([subscriptionId])
   @@index([status])
   @@index([invoiceNumber])
   @@index([dueDate])
+  @@index([status, dueDate])
   @@map("invoices")
 }
 
@@ -336,6 +339,8 @@ model Payment {
   updatedAt         DateTime      @updatedAt
 
   @@index([customerId])
+  @@index([userId])
+  @@index([subscriptionId])
   @@index([status])
   @@index([reference])
   @@index([checkoutRequestId])
@@ -416,6 +421,7 @@ model RadiusSession {
   @@index([sessionId])
   @@index([status])
   @@index([nasIpAddress])
+  @@index([status, nasIpAddress])
   @@index([nasId])
   @@map("radius_sessions")
 }
@@ -443,6 +449,7 @@ model UsageRecord {
   @@index([userId])
   @@index([customerId])
   @@index([timestamp])
+  @@index([customerId, timestamp])
   @@index([subscriptionId])
   @@map("usage_records")
 }

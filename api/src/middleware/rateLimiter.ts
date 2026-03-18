@@ -4,6 +4,11 @@ import config from '../config';
 import RedisClient from '../config/redis';
 import { logger } from '../config/logger';
 
+// Environment-aware rate limit defaults
+const isNonProduction = config.env !== 'production';
+const DEFAULT_WINDOW_MS = isNonProduction ? 15 * 60 * 1000 : 15 * 60 * 1000; // 15 min
+const DEFAULT_MAX_REQUESTS = isNonProduction ? 1000 : 100; // Relaxed for dev/staging
+
 // Track Redis availability for graceful fallback
 let redisAvailable = true;
 let lastRedisCheck = 0;
@@ -126,10 +131,10 @@ const createRateLimiter = (options: {
   };
 };
 
-// Standard rate limiter with Redis store
+// Standard rate limiter with Redis store — relaxed limits for non-production
 export const rateLimiter = createRateLimiter({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.maxRequests,
+  windowMs: config.rateLimit.windowMs || DEFAULT_WINDOW_MS,
+  max: isNonProduction ? DEFAULT_MAX_REQUESTS : config.rateLimit.maxRequests,
   message: {
     success: false,
     message: 'Too many requests, please try again later',
@@ -181,6 +186,18 @@ export const radiusRateLimiter = createRateLimiter({
   message: {
     success: false,
     message: 'Too many RADIUS requests, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Report rate limiter — expensive aggregation queries need stricter limits
+export const reportRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: {
+    success: false,
+    message: 'Too many report requests, please try again later',
   },
   standardHeaders: true,
   legacyHeaders: false,

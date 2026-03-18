@@ -94,7 +94,29 @@ class CustomerController {
       const customer = await prisma.customer.findUnique({
         where: { id },
         include: {
-          user: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              phoneVerified: true,
+              emailVerified: true,
+              role: true,
+              accountStatus: true,
+              networkProvider: true,
+              preferredPayment: true,
+              addressLine1: true,
+              addressLine2: true,
+              city: true,
+              county: true,
+              postalCode: true,
+              lastLoginAt: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
           subscriptions: {
             include: { plan: true },
             orderBy: { createdAt: 'desc' },
