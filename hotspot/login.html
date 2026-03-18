@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeorgeISP - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            border-radius: 20px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            color: #333;
+            font-weight: 700;
+        }
+        .logo span {
+            color: #667eea;
+        }
+        .logo p {
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e1e1e1;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            outline: none;
+        }
+        .form-group input:focus {
+            border-color: #667eea;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        .error-msg {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .info-box {
+            background: #f0f4ff;
+            color: #555;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-top: 25px;
+            line-height: 1.6;
+        }
+        .info-box strong {
+            color: #333;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #aaa;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>George<span>ISP</span></h1>
+            <p>Welcome to GeorgeISP Hotspot</p>
+        </div>
+
+        <div class="error-msg" id="error">Invalid username or password. Please try again.</div>
+
+        <form method="post" action="$PORTAL_ACTION$">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            <input type="hidden" name="dst" value="$PORTAL_HOSTNAME$$PORTAL_ORIG_URL$">
+            <input type="hidden" name="popup" value="true">
+            <button type="submit" class="btn-login">Connect to Internet</button>
+        </form>
+
+        <div class="info-box">
+            <strong>Need help?</strong><br>
+            Contact us: 07XX XXX XXX<br>
+            Or visit: <strong>main.spidmax.win</strong>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 GeorgeISP. All rights reserved.
+        </div>
+    </div>
+
+    <script>
+        // Show error message if login failed
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('error') === '1') {
+            document.getElementById('error').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
