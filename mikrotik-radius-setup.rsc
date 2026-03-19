@@ -64,7 +64,7 @@
 # ---------------------------
 # 4. DHCP Server (LAN - trusted devices, no auth)
 # ---------------------------
-/ip pool add name=dhcp-pool ranges=192.168.88.10-192.168.88.200
+/ip pool add name=dhcp-pool ranges=192.168.88.10-192.168.88.30
 
 /ip dhcp-server add name=dhcp-local address-pool=dhcp-pool interface=bridge disabled=no
 
@@ -91,7 +91,7 @@
 # ---------------------------
 # 6. Hotspot (WiFi customers) - Redirects to our web portal
 # ---------------------------
-/ip pool add name=hotspot-pool ranges=192.168.88.210-192.168.88.250
+/ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.250
 
 # Use external login page (our web server)
 /ip hotspot profile add name=hotspot-radius \
