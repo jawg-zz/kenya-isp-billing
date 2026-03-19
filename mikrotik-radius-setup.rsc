@@ -25,7 +25,7 @@
 
 # Hotspot
 /ip pool add name=hotspot ranges=192.168.88.31-250
-/ip hotspot profile add name=radius login-by=http-chap use-radius=yes http-redirect=yes redirect-url=https://isp.spidmax.win/hotspot/login.html
+/ip hotspot profile add name=radius login-by=http-chap use-radius=yes
 /ip hotspot add interface=bridge address-pool=hotspot profile=radius local-address=192.168.88.254 disabled=no
 
 # PPPoE
@@ -39,6 +39,9 @@
 # Queue
 /queue tree add name=global-down parent=global max-limit=100M priority=8 queue=default
 /queue tree add name=global-up parent=global max-limit=50M priority=8 queue=default
+
+# After import, configure hotspot redirect manually:
+# /ip hotspot profile set radius redirect-url=https://isp.spidmax.win/hotspot/login.html
 
 # WireGuard - Generate key on router, then run these 3:
 # /interface wireguard generate private-key
