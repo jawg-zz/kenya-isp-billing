@@ -25,6 +25,7 @@
 :local RADIUS_SECRET "CHANGE_ME_TO_YOUR_RADIUS_SECRET"
 :local WIFI_SSID "MyISP_Free_WiFi"
 :local WAN_INTERFACE "ether1"
+:local HOTSPOT_SERVER "https://main.spidmax.win/hotspot/login.html"
 
 # ---------------------------
 # 1. Basic Network Setup
@@ -88,16 +89,18 @@
   interim-update=5m
 
 # ---------------------------
-# 6. Hotspot (WiFi customers)
+# 6. Hotspot (WiFi customers) - Redirects to our web portal
 # ---------------------------
 /ip pool add name=hotspot-pool ranges=192.168.88.210-192.168.88.250
 
+# Use external login page (our web server)
 /ip hotspot profile add name=hotspot-radius \
-  html-directory=hotspot \
-  login-by=http-chap,cookie \
+  login-by=http-chap \
   use-radius=yes \
   radius-accounting=yes \
-  interim-update=1m
+  interim-update=1d \
+  http-redirect=yes \
+  redirect-url=$HOTSPOT_SERVER
 
 /ip hotspot add name=hotspot1 \
   interface=bridge \
