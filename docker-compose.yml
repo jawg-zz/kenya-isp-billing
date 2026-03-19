@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -122,3 +120,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  homelab-wgeasy-u0ghdp:
+    external: true
