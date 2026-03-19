@@ -99,10 +99,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-isp_billing}
       RADIUS_DB_HOST: postgres
       RADIUS_DB_PORT: 5432
-    ports:
-      - "1812:1812/udp"   # RADIUS Authentication
-      - "1813:1813/udp"   # RADIUS Accounting
-      - "3799:3799/udp"   # RADIUS CoA (Change of Authorization)
     networks:
       - default
       - homelab-wgeasy-u0ghdp
