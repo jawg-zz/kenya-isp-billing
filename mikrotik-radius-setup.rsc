@@ -2,6 +2,7 @@
 # MikroTik RADIUS Integration Script - Clean Slate Version
 # ============================================================================
 # Configures a blank MikroTik (no default config) with:
+# - WireGuard VPN (tunnel to RADIUS server via vpn.spidmax.win)
 # - WiFi Hotspot (captive portal for wireless customers)
 # - PPPoE Server (for wired Ethernet customers)
 # - RADIUS authentication (FreeRADIUS on 10.8.0.1)
@@ -9,16 +10,15 @@
 #
 # Prerequisites:
 # - RouterOS 7.x (after reset with NO default configuration)
-# - WireGuard server running (vpn.spidmax.win:51820)
+# - WireGuard server running at vpn.spidmax.win
 # - FreeRADIUS running on docker at 10.8.0.1
 #
 # Usage:
-# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID, WG keys)
-# 2. Generate WireGuard keys on MikroTik: /interface wireguard generate private-key
-# 3. Get the public key and add it to your WireGuard server
-# 4. Reset MikroTik with "No Default Configuration"
-# 5. Set admin password: /user set admin password=YourPassword
-# 6. Paste this entire script
+# 1. Edit RADIUS_SECRET and WIFI_SSID at the top
+# 2. Reset MikroTik with "No Default Configuration"
+# 3. Set admin password: /user set admin password=YourPassword
+# 4. Paste this entire script
+# 5. Test: /radius test username=x password=x server=10.8.0.1
 # ============================================================================
 
 # ---------------------------
@@ -193,22 +193,23 @@
 # What this creates:
 # | Component       | IP Range            | Purpose                    |
 # |-----------------|---------------------|----------------------------|
+# | WireGuard VPN   | 10.8.0.2            | Tunnel to RADIUS server    |
 # | LAN Bridge      | 192.168.88.1        | Router management         |
-# | Regular DHCP    | 192.168.88.10-200   | Trusted devices (no auth) |
-# | Hotspot/PPPoE   | 192.168.88.210-250  | Customer auth required    |
-# | WiFi            | $WIFI_SSID          | Wireless access point     |
-# | WAN             | ether1 (DHCP)       | Internet connection       |
+# | Regular DHCP    | 192.168.88.10-30    | Trusted devices (no auth) |
+# | Hotspot/PPPoE  | 192.168.88.31-250   | Customer auth required    |
+# | WiFi (Open)    | $WIFI_SSID          | Wireless access point     |
+# | WAN            | ether1 (DHCP)        | Internet connection       |
 #
 # Next steps:
-# 1. Edit RADIUS_SECRET, WIFI_SSID, WIFI_PASSWORD at the top
+# 1. Edit RADIUS_SECRET and WIFI_SSID at the top
 # 2. Reset MikroTik with "No Default Configuration"
 # 3. Set admin password: /user set admin password=YourPassword
 # 4. Paste this script
-# 5. Add test users to FreeRADIUS (see radius-users-seed.sql)
-# 6. Test: /radius test username=testuser password=testpass server=10.8.0.1
+# 5. Verify WireGuard: /interface wireguard peers print (should show connected)
+# 6. Test RADIUS: /radius test username=x password=x server=10.8.0.1
 #
 # Troubleshooting:
-# - No RADIUS response: Check WireGuard tunnel is up
+# - No RADIUS response: Check WireGuard tunnel is up (/interface wireguard peers print)
 # - WiFi not showing: Verify wlan1 is not disabled
 # - Hotspot login page not redirecting: Check hotspot is enabled
 # ============================================================================
