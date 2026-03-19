@@ -13,7 +13,7 @@
 # - FreeRADIUS running on docker at 10.8.0.1
 #
 # Usage:
-# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID, WIFI_PASSWORD)
+# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID)
 # 2. Reset MikroTik with "No Default Configuration"
 # 3. Set admin password: /user set admin password=YourPassword
 # 4. Paste this entire script
@@ -23,8 +23,7 @@
 # 0. SETUP VARIABLES - EDIT THESE BEFORE PASTING
 # ---------------------------
 :local RADIUS_SECRET "CHANGE_ME_TO_YOUR_RADIUS_SECRET"
-:local WIFI_SSID "MyISP_WiFi"
-:local WIFI_PASSWORD "SecurePassword123"
+:local WIFI_SSID "MyISP_Free_WiFi"
 :local WAN_INTERFACE "ether1"
 
 # ---------------------------
@@ -50,18 +49,13 @@
 /ip firewall nat add chain=srcnat out-interface=$WAN_INTERFACE action=masquerade
 
 # ---------------------------
-# 3. WiFi Configuration
+# 3. WiFi Configuration (Open - no password, captive portal handles auth)
 # ---------------------------
-/interface wireless security-profiles add name=wpa2-sec \
-  authentication-types=wpa2-psk \
-  mode=dynamic-keys \
-  wpa2-pre-shared-key=$WIFI_PASSWORD
-
 /interface wireless set wlan1 mode=ap-bridge \
   band=2ghz-b/g/n \
   channel-width=20/40mhz-XX \
   ssid=$WIFI_SSID \
-  security-profile=wpa2-sec \
+  security-profile=default \
   disabled=no
 
 /interface bridge port add bridge=bridge interface=wlan1
