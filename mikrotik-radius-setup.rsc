@@ -9,14 +9,16 @@
 #
 # Prerequisites:
 # - RouterOS 7.x (after reset with NO default configuration)
-# - WireGuard VPN connected (peer 10.8.0.2 -> server 10.8.0.1)
+# - WireGuard server running (vpn.spidmax.win:51820)
 # - FreeRADIUS running on docker at 10.8.0.1
 #
 # Usage:
-# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID)
-# 2. Reset MikroTik with "No Default Configuration"
-# 3. Set admin password: /user set admin password=YourPassword
-# 4. Paste this entire script
+# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID, WG keys)
+# 2. Generate WireGuard keys on MikroTik: /interface wireguard generate private-key
+# 3. Get the public key and add it to your WireGuard server
+# 4. Reset MikroTik with "No Default Configuration"
+# 5. Set admin password: /user set admin password=YourPassword
+# 6. Paste this entire script
 # ============================================================================
 
 # ---------------------------
@@ -26,6 +28,12 @@
 :local WIFI_SSID "MyISP_Free_WiFi"
 :local WAN_INTERFACE "ether1"
 :local HOTSPOT_SERVER "https://isp.spidmax.win/hotspot/login.html"
+
+# WireGuard VPN - EDIT THESE
+:local WG_PRIVATE_KEY "YOUR_WG_PRIVATE_KEY"  # Generate on MikroTik: /interface wireguard generate private-key
+:local WG_PEER_PUBKEY "SERVER_PUBLIC_KEY"    # Get from your WireGuard server
+:local WG_ENDPOINT "vpn.spidmax.win:51820"   # Your WireGuard server endpoint
+:local WG_PRESHARED_KEY "YOUR_PSK"           # Optional: pre-shared key for extra security
 
 # ---------------------------
 # 1. Basic Network Setup
@@ -41,6 +49,27 @@
 }
 
 /ip address add address=192.168.88.1/24 interface=bridge comment="LAN"
+
+# ---------------------------
+# 1b. WireGuard VPN (tunnel to RADIUS server)
+# ---------------------------
+# Generate private key on MikroTik: /interface wireguard generate private-key
+# Then paste the private key below (remove the example and use actual key)
+/interface wireguard add name=wg-vpn \
+  private-key=$WG_PRIVATE_KEY \
+  listen-port=51820 \
+  mtu=1420
+
+# Add peer (your WireGuard server)
+/interface wireguard peers add interface=wg-vpn \
+  public-key=$WG_PEER_PUBKEY \
+  endpoint-address=$WG_ENDPOINT \
+  preshared-key=$WG_PRESHARED_KEY \
+  persistent-keepalive=25s \
+  allowed-address=10.8.0.0/24
+
+# Assign IP to WireGuard interface
+/ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
 
 # ---------------------------
 # 2. WAN Configuration
