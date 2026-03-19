@@ -25,7 +25,7 @@
 :local RADIUS_SECRET "CHANGE_ME_TO_YOUR_RADIUS_SECRET"
 :local WIFI_SSID "MyISP_Free_WiFi"
 :local WAN_INTERFACE "ether1"
-:local HOTSPOT_SERVER "https://main.spidmax.win/hotspot/login.html"
+:local HOTSPOT_SERVER "https://isp.spidmax.win/hotspot/login.html"
 
 # ---------------------------
 # 1. Basic Network Setup
