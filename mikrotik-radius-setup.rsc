@@ -1,177 +1,188 @@
 # ============================================================================
-# MikroTik RADIUS Integration Script
+# MikroTik RADIUS Integration Script - Clean Slate Version
 # ============================================================================
-# This script configures a MikroTik router (already connected via WireGuard VPN
-# to vpn.spidmax.win:51820, assigned IP 10.8.0.2) to use RADIUS for:
-#   - Hotspot authentication (captive portal for WiFi users)
-#   - PPPoE authentication (optional, for wired connections)
-#   - Rate-limiting via RADIUS attributes (Mikrotik-Rate-Limit)
+# Configures a blank MikroTik (no default config) with:
+# - WiFi Hotspot (captive portal for wireless customers)
+# - PPPoE Server (for wired Ethernet customers)
+# - RADIUS authentication (FreeRADIUS on 10.8.0.1)
+# - Speed limiting via RADIUS attributes
 #
 # Prerequisites:
-#   - RouterOS 7.x (tested on 7.12+)
-#   - WireGuard VPN already configured and connected (see mikrotik-wireguard-vpn.rsc)
-#   - Hotspot package installed (default on most MikroTik devices)
-#   - RADIUS server reachable at 10.8.0.1 (WireGuard server side)
+# - RouterOS 7.x (after reset with NO default configuration)
+# - WireGuard VPN connected (peer 10.8.0.2 -> server 10.8.0.1)
+# - FreeRADIUS running on docker at 10.8.0.1
 #
-# Usage: Paste each section into the MikroTik terminal, or copy-paste the
-#        entire script. Changes take effect immediately.
+# Usage:
+# 1. Edit the variables at the top (RADIUS_SECRET, WIFI_SSID, WIFI_PASSWORD)
+# 2. Reset MikroTik with "No Default Configuration"
+# 3. Set admin password: /user set admin password=YourPassword
+# 4. Paste this entire script
 # ============================================================================
 
 # ---------------------------
-# 1. RADIUS Client Configuration
+# 0. SETUP VARIABLES - EDIT THESE BEFORE PASTING
 # ---------------------------
-# Point the router to the FreeRADIUS server over WireGuard VPN
-
-/radius
-add service=hotspot \
-    address=10.8.0.1 \
-    secret="CHANGE_THIS_TO_MATCH_YOUR_RADIUS_SECRET" \
-    authentication-port=1812 \
-    accounting-port=1813 \
-    require-message-authentication=yes \
-    src-address=10.8.0.2 \
-    timeout=3000ms \
-    tries=3 \
-    disabled=no
-
-/ppp aaa
-set use-radius=yes \
-    radius-accounting=yes \
-    interim-update=5m
+:local RADIUS_SECRET "CHANGE_ME_TO_YOUR_RADIUS_SECRET"
+:local WIFI_SSID "MyISP_WiFi"
+:local WIFI_PASSWORD "SecurePassword123"
+:local WAN_INTERFACE "ether1"
 
 # ---------------------------
-# 2. Hotspot Configuration
+# 1. Basic Network Setup
 # ---------------------------
+/interface bridge add name=bridge disabled=no
 
-# 2a. Create a local hotspot profile (uses RADIUS for auth)
-/ip hotspot profile
-add name="hotspot-radius" \
-    html-directory=hotspot \
-    login-by=http-chap,cookie \
-    html-directory-override="" \
-    hotspot-address=192.168.88.254 \
-    dns-name="wifi.yourisp.com" \
-    use-radius=yes \
-    radius-accounting=yes \
-    interim-update=1m \
-    split-user-domain=no \
-    generate-http-pages=no
+# Add all Ethernet ports except WAN to bridge
+:foreach i in=[/interface ethernet find] do={
+  :local name [/interface ethernet get $i name]
+  :if ($name != $WAN_INTERFACE) do={
+    /interface bridge port add bridge=bridge interface=$name
+  }
+}
 
-# 2b. Create a hotspot instance on LAN interface
-#     Replace "bridge" with your actual LAN bridge/interface name
-/ip hotspot
-add name="hotspot1" \
-    interface=bridge \
-    address-pool=hotspot-pool \
-    profile="hotspot-radius" \
-    disabled=no \
-    local-address=192.168.88.254 \
-    max-tcp-concurrent=16
-
-# 2c. Define the IP pool for hotspot users
-/ip pool
-add name="hotspot-pool" \
-    ranges=192.168.88.100-192.168.88.200
+/ip address add address=192.168.88.1/24 interface=bridge comment="LAN"
 
 # ---------------------------
-# 3. PPPoE Server (Optional — for wired subscribers)
+# 2. WAN Configuration
 # ---------------------------
+/ip dhcp-client add interface=$WAN_INTERFACE disabled=no comment="WAN"
 
-# 3a. Create a PPPoE service profile that uses RADIUS
-/ppp profile
-add name="pppoe-radius" \
-    local-address=192.168.88.1 \
-    remote-address=hotspot-pool \
-    use-encryption=required \
-    use-mpls=no \
-    only-one=yes \
-    change-tcp-mss=yes
-
-# 3b. Start PPPoE server on the LAN interface
-#     Replace "ether2" with the WAN-facing port for wired subscribers
-/interface pppoe-server server
-add service-name="isp-pppoe" \
-    interface=ether2 \
-    default-profile="pppoe-radius" \
-    use-radius=yes \
-    accounting=yes \
-    interim-update=5m \
-    max-mtu=1480 \
-    max-mru=1480 \
-    disabled=no
+/ip firewall nat add chain=srcnat out-interface=$WAN_INTERFACE action=masquerade
 
 # ---------------------------
-# 4. Firewall Rules (if not already present)
+# 3. WiFi Configuration
 # ---------------------------
+/interface wireless security-profiles add name=wpa2-sec \
+  authentication-types=wpa2-psk \
+  mode=dynamic-keys \
+  wpa2-pre-shared-key=$WIFI_PASSWORD
 
-# Allow RADIUS traffic from LAN to the VPN tunnel
-/ip firewall filter
-add chain=forward \
-    src-address=192.168.88.0/24 \
-    dst-address=10.8.0.1 \
-    protocol=udp \
-    dst-port=1812,1813 \
-    action=accept \
-    comment="Allow RADIUS to VPN server"
+/interface wireless set wlan1 mode=ap-bridge \
+  band=2ghz-b/g/n \
+  channel-width=20/40mhz-XX \
+  ssid=$WIFI_SSID \
+  security-profile=wpa2-sec \
+  disabled=no
 
-# Allow Hotspot traffic (HTTP/HTTPS redirect)
-add chain=input \
-    protocol=tcp \
-    dst-port=80,443 \
-    in-interface=bridge \
-    action=accept \
-    comment="Allow Hotspot HTTP/HTTPS"
+/interface bridge port add bridge=bridge interface=wlan1
 
 # ---------------------------
-# 5. Queue Tree for Rate Limiting (Complement to RADIUS attributes)
+# 4. DHCP Server (LAN - trusted devices, no auth)
 # ---------------------------
-# RADIUS Mikrotik-Rate-Limit handles per-user limits.
-# These are optional global caps.
+/ip pool add name=dhcp-pool ranges=192.168.88.10-192.168.88.200
 
-/queue tree
-add name="hotspot-down" \
-    parent=global \
-    max-limit=100M \
-    priority=8 \
-    queue=default
+/ip dhcp-server add name=dhcp-local address-pool=dhcp-pool interface=bridge disabled=no
 
-add name="hotspot-up" \
-    parent=global \
-    max-limit=50M \
-    priority=8 \
-    queue=default
+/ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=192.168.88.1
 
 # ---------------------------
-# 6. Verify Configuration
+# 5. RADIUS Client
 # ---------------------------
-# Run these commands to verify RADIUS is working:
+/radius add service=hotspot,ppp \
+  address=10.8.0.1 \
+  secret=$RADIUS_SECRET \
+  authentication-port=1812 \
+  accounting-port=1813 \
+  require-message-authentication=yes \
+  src-address=10.8.0.2 \
+  timeout=3000ms \
+  tries=3 \
+  disabled=no
 
-# Check RADIUS status:
-# /radius monitor 0
+/ppp aaa set use-radius=yes \
+  radius-accounting=yes \
+  interim-update=5m
 
-# Check active hotspot users:
-# /ip hotspot active print
+# ---------------------------
+# 6. Hotspot (WiFi customers)
+# ---------------------------
+/ip pool add name=hotspot-pool ranges=192.168.88.210-192.168.88.250
 
-# Check active PPPoE sessions:
-# /ppp active print
+/ip hotspot profile add name=hotspot-radius \
+  html-directory=hotspot \
+  login-by=http-chap,cookie \
+  use-radius=yes \
+  radius-accounting=yes \
+  interim-update=1m
 
-# Test RADIUS authentication manually:
-# /radius test username=testuser password=testpass server=10.8.0.1
+/ip hotspot add name=hotspot1 \
+  interface=bridge \
+  address-pool=hotspot-pool \
+  profile=hotspot-radius \
+  disabled=no \
+  local-address=192.168.88.254
+
+# ---------------------------
+# 7. PPPoE Server (Wired customers)
+# ---------------------------
+/ppp profile add name=pppoe-radius \
+  local-address=192.168.88.1 \
+  remote-address=hotspot-pool \
+  use-encryption=required \
+  only-one=yes
+
+/interface pppoe-server server add service-name=isp-pppoe \
+  interface=bridge \
+  default-profile=pppoe-radius \
+  use-radius=yes \
+  accounting=yes \
+  disabled=no
+
+# ---------------------------
+# 8. Firewall Rules
+# ---------------------------
+# Allow RADIUS traffic to VPN server
+/ip firewall filter add chain=forward \
+  src-address=192.168.88.0/24 \
+  dst-address=10.8.0.1 \
+  protocol=udp \
+  dst-port=1812,1813 \
+  action=accept \
+  comment="Allow RADIUS to VPN server"
+
+# Allow Hotspot HTTP/HTTPS
+/ip firewall filter add chain=input \
+  protocol=tcp \
+  dst-port=80,443 \
+  in-interface=bridge \
+  action=accept \
+  comment="Allow Hotspot HTTP/HTTPS"
+
+# ---------------------------
+# 9. DNS
+# ---------------------------
+/ip dns set allow-remote-requests=yes
+/ip dns static add name=router.lan address=192.168.88.1
+
+# ---------------------------
+# 10. Queue Tree (Global speed caps - optional)
+# ---------------------------
+/queue tree add name=global-down parent=global max-limit=100M priority=8 queue=default
+/queue tree add name=global-up parent=global max-limit=50M priority=8 queue=default
 
 # ============================================================================
 # END OF SCRIPT
 # ============================================================================
 #
-# Next Steps:
-#   1. Change the RADIUS secret above to match your .env RADIUS_SECRET
-#   2. Ensure the FreeRADIUS container has clients.conf with this router's IP
-#   3. Add test users to the radcheck/radreply tables (see radius-users-seed.sql)
-#   4. Test with: /radius test username=testuser password=testpass server=10.8.0.1
-#   5. Connect a device to WiFi → should see the hotspot login page
+# What this creates:
+# | Component       | IP Range            | Purpose                    |
+# |-----------------|---------------------|----------------------------|
+# | LAN Bridge      | 192.168.88.1        | Router management         |
+# | Regular DHCP    | 192.168.88.10-200   | Trusted devices (no auth) |
+# | Hotspot/PPPoE   | 192.168.88.210-250  | Customer auth required    |
+# | WiFi            | $WIFI_SSID          | Wireless access point     |
+# | WAN             | ether1 (DHCP)       | Internet connection       |
+#
+# Next steps:
+# 1. Edit RADIUS_SECRET, WIFI_SSID, WIFI_PASSWORD at the top
+# 2. Reset MikroTik with "No Default Configuration"
+# 3. Set admin password: /user set admin password=YourPassword
+# 4. Paste this script
+# 5. Add test users to FreeRADIUS (see radius-users-seed.sql)
+# 6. Test: /radius test username=testuser password=testpass server=10.8.0.1
 #
 # Troubleshooting:
-#   - "no response from server" → Check WireGuard tunnel: /interface wireguard peers print
-#   - "authentication failed" → Verify shared secret matches in both places
-#   - Users not getting speed limits → Check radreply table has Mikrotik-Rate-Limit
-#   - Hotspot page not showing → Verify hotspot profile and interface assignment
+# - No RADIUS response: Check WireGuard tunnel is up
+# - WiFi not showing: Verify wlan1 is not disabled
+# - Hotspot login page not redirecting: Check hotspot is enabled
 # ============================================================================
