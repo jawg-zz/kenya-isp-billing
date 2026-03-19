@@ -32,7 +32,7 @@
 # WireGuard VPN - Already configured on server
 :local WG_PRIVATE_KEY "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
 :local WG_PEER_PUBKEY "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
-:local WG_ENDPOINT "vpn.spidmax.win"
+:local WG_ENDPOINT "vpn.spidmax.win:51820"
 :local WG_PRESHARED_KEY "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
 
 # ---------------------------
