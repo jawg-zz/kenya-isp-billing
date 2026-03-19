@@ -1,8 +1,7 @@
-# MikroTik Full Setup - Single Script
-# Reset RouterOS > No Default Config > Set Password > Paste
+# MikroTik Full Setup - Import this file
+# 1. Upload to MikroTik via Winbox (Files section)
+# 2. Run: /import file-name=mikrotik-radius-setup.rsc
 
-# === PART 1: BASIC SETUP (run first) ===
-{
 :local rSecret "CHANGE_ME"
 :local wifiSSID "MyISP"
 
@@ -37,12 +36,10 @@
 # Firewall
 /ip firewall filter add chain=forward src-address=192.168.88.0/24 dst-address=10.8.0.1 protocol=udp dst-port=1812,1813 action=accept
 /ip dns set allow-remote-requests=yes
-}
 
-# === PART 2: WIREGUARD (run after Part 1) ===
-# Generate new key ON THE ROUTER first:
-/interface wireguard generate private-key
-# Copy the key from output, then run these 3 lines:
-# /interface wireguard add name=wg-vpn private-key=<PASTE_KEY_HERE> listen-port=51820
+# WireGuard - Generate key on router first:
+# /interface wireguard generate private-key
+# Then run these 3 commands with your keys:
+# /interface wireguard add name=wg-vpn private-key=YOUR_KEY listen-port=51820
 # /interface wireguard peers add interface=wg-vpn public-key=L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw= endpoint-address=vpn.spidmax.win:51820 preshared-key=4Cntf94sI7Igv64iAWx2B77_qMc5FOyr1cYyZvTd+Qo= persistent-keepalive=25s allowed-address=10.8.0.0/24
 # /ip address add address=10.8.0.2/24 interface=wg-vpn
