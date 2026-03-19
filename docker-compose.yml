@@ -103,14 +103,9 @@ services:
       - "1812:1812/udp"   # RADIUS Authentication
       - "1813:1813/udp"   # RADIUS Accounting
       - "3799:3799/udp"   # RADIUS CoA (Change of Authorization)
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -x freeradius"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
     networks:
       - default
+      - homelab-wgeasy-u0ghdp
 
   frontend:
     build:
