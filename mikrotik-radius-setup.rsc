@@ -29,11 +29,11 @@
 :local WAN_INTERFACE "ether1"
 :local HOTSPOT_SERVER "https://isp.spidmax.win/hotspot/login.html"
 
-# WireGuard VPN - EDIT THESE
-:local WG_PRIVATE_KEY "YOUR_WG_PRIVATE_KEY"  # Generate on MikroTik: /interface wireguard generate private-key
-:local WG_PEER_PUBKEY "SERVER_PUBLIC_KEY"    # Get from your WireGuard server
-:local WG_ENDPOINT "vpn.spidmax.win:51820"   # Your WireGuard server endpoint
-:local WG_PRESHARED_KEY "YOUR_PSK"           # Optional: pre-shared key for extra security
+# WireGuard VPN - Already configured on server
+:local WG_PRIVATE_KEY "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
+:local WG_PEER_PUBKEY "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
+:local WG_ENDPOINT "vpn.spidmax.win:51820"
+:local WG_PRESHARED_KEY "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
 
 # ---------------------------
 # 1. Basic Network Setup
