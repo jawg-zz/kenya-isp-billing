@@ -1,22 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta http-equiv="refresh" content="0;url=https://isp.spidmax.win/hotspot/login.html?mac=$(mac)&ip=$(ip)&chap_id=$(chap-id)&chap_challenge=$(chap-challenge)&link-login=$(link-login-only)&link-orig=$(link-orig)&link-login-only=$(link-login-only)&link-orig-esc=$(link-orig-esc)&user=$(username)&user-esc=$(username-esc)">
-    <title>Redirecting...</title>
+    <meta http-equiv="refresh" content="0;url=https://isp.spidmax.win/hotspot/login.html?mac=$(mac)&ip=$(ip)&chap_id=$(chap-id)&chap_challenge=$(chap-challenge)">
+    <title>Loading...</title>
 </head>
 <body>
     <p>Redirecting to login page...</p>
-    <script>
-        // Get URL params from MikroTik
-        var url = "https://isp.spidmax.win/hotspot/login.html";
-        var params = ["mac", "ip", "chap-id", "chap-challenge", "link-login", "link-orig", "link-login-only", "link-orig-esc", "username", "user-esc"];
-        var query = [];
-        params.forEach(function(p) {
-            var val = "$(p)".replace("$(p)", "").trim();
-            if (val) query.push(p + "=" + encodeURIComponent(val));
-        });
-        if (query.length > 0) url += "?" + query.join("&");
-        window.location.href = url;
-    </script>
 </body>
 </html>
