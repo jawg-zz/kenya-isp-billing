@@ -79,14 +79,14 @@
 # 3. WiFi Configuration (ROS 7.x)
 # ---------------------------
 # Define WiFi channel
-/interface wifi channel add name=ch-2ghz band=2ghz-n/ac channel-width=20/40mhz-ce frequency=2437
+/interface wifi channel add name=ch2ghz band=2ghz-n
 
 # Create WiFi security profile (open - no password)
 # For open hotspot, we use authentication-types=none
-/interface wifi security add name=open-sec authentication-types=none
+/interface wifi security add name=opensec authentication-types=none
 
 # Create WiFi AP (standalone mode)
-/interface wifi add name=wifi1 ssid=$WIFI_SSID security=open-sec disabled=no channel=ch-2ghz
+/interface wifi add name=wifi1 ssid=$WIFI_SSID security=opensec disabled=no channel=ch2ghz
 
 # Add WiFi to bridge
 /interface bridge port add bridge=bridge interface=wifi1
@@ -94,8 +94,8 @@
 # ---------------------------
 # 4. DHCP Server (Trusted devices)
 # ---------------------------
-/ip pool add name=dhcp-pool ranges=192.168.88.10-192.168.88.30
-/ip dhcp-server add name=dhcp-local address-pool=dhcp-pool interface=bridge disabled=no
+/ip pool add name=dhcp ranges=192.168.88.10-192.168.88.30
+/ip dhcp-server add name=dhcp-local address-pool=dhcp interface=bridge disabled=no
 /ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=192.168.88.1
 
 # ---------------------------
@@ -108,22 +108,22 @@
 # ---------------------------
 # 6. Hotspot (WiFi customers)
 # ---------------------------
-/ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.199
+/ip pool add name=hotspot ranges=192.168.88.31-192.168.88.199
 
-/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d rate-limit=""
+/ip hotspot profile add name=hotspotradius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d rate-limit=""
 
-/ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot-pool profile=hotspot-radius disabled=no local-address=192.168.88.1
+/ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot profile=hotspotradius disabled=no local-address=192.168.88.1
 
 # Note: For custom hotspot login page, upload hotspot/ directory via Winbox > Files
 
 # ---------------------------
 # 7. PPPoE Server (Wired customers)
 # ---------------------------
-/ip pool add name=pppoe-pool ranges=192.168.88.200-192.168.88.250
+/ip pool add name=pppoe ranges=192.168.88.200-192.168.88.250
 
-/ppp profile add name=pppoe-radius local-address=192.168.88.1 remote-address=pppoe-pool use-encryption=required only-one=yes rate-limit=""
+/ppp profile add name=pppoeradius local-address=192.168.88.1 remote-address=pppoe use-encryption=required only-one=yes rate-limit=""
 
-/interface pppoe-server server add service-name=isp-pppoe interface=bridge default-profile=pppoe-radius use-radius=yes accounting=yes disabled=no
+/interface pppoe-server server add service-name=isp-pppoe interface=bridge default-profile=pppoeradius use-radius=yes accounting=yes disabled=no
 
 # ---------------------------
 # 8. Firewall Rules
@@ -156,16 +156,10 @@
 # ---------------------------
 # 10. Queue Types (PCQ for per-user speed limits)
 # ---------------------------
-# PCQ (Per Connection Queue) - limits download per user
-/queue type add name=pcq-download kind=pcq pcq-rate=0 pcq-classifier=dst-address
-
-# PCQ - limits upload per user
-/queue type add name=pcq-upload kind=pcq pcq-rate=0 pcq-classifier=src-address
-
-# Default queues for the bridge (will be overridden by RADIUS attributes)
-/queue simple add name=hotspot-users target=192.168.88.0/24 queue=pcq-upload/pcq-download total-queue=pcq-upload disabled=no
-
-/queue simple add name=pppoe-users target=192.168.88.200-192.168.88.250 queue=pcq-upload/pcq-download total-queue=pcq-upload disabled=no
+/queue type add name=pcqdownload kind=pcq pcq-rate=0 pcq-classifier=dst-address
+/queue type add name=pcqupload kind=pcq pcq-rate=0 pcq-classifier=src-address
+/queue simple add name=hotspotusers target=192.168.88.0/24 queue=pcqupload/pcqdownload total-queue=pcqupload disabled=no
+/queue simple add name=pppoeusers target=192.168.88.200-192.168.88.250 queue=pcqupload/pcqdownload total-queue=pcqupload disabled=no
 
 # ============================================================================
 # END OF SCRIPT
