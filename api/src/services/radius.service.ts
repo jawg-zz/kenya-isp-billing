@@ -76,6 +76,10 @@ class RadiusService {
     const username = `cust_${customer.customerCode.toLowerCase()}`;
     const { plaintext, hashed } = await RadiusService.generatePassword();
 
+    // Get active subscription to determine plan group
+    const subscription = customer.subscriptions?.find((s: any) => s.status === 'ACTIVE');
+    const planCode = subscription?.plan?.code || 'default';
+
     // Create RADIUS config with hashed password
     const radiusConfig = await prisma.radiusConfig.create({
       data: {
@@ -87,7 +91,12 @@ class RadiusService {
     });
 
     // Sync plaintext password with RADIUS server (not the hash)
-    await this.syncUserToRadius({ ...radiusConfig, password: plaintext });
+    await this.syncUserToRadius({ 
+      username, 
+      password: plaintext, 
+      isActive: true,
+      planCode 
+    });
 
     logger.info(`RADIUS user created for customer ${customer.customerCode}`);
     return radiusConfig;
@@ -702,10 +711,10 @@ class RadiusService {
     return sessions;
   }
 
-  // Sync user to RADIUS server (writes to FreeRADIUS radcheck table)
-  private async syncUserToRadius(config: { username: string; password: string; isActive?: boolean }): Promise<void> {
+  // Sync user to RADIUS server (writes to FreeRADIUS radcheck + radusergroup tables)
+  private async syncUserToRadius(config: { username: string; password: string; isActive?: boolean; planCode?: string }): Promise<void> {
     try {
-      const { username, password, isActive = true } = config;
+      const { username, password, isActive = true, planCode } = config;
 
       // Check if FreeRADIUS radcheck table exists
       const tableExists = await prisma.$queryRaw`
@@ -741,12 +750,60 @@ class RadiusService {
         `;
 
         logger.info(`RADIUS user ${username} synced to radcheck table (active)`);
+
+        // Sync user to radusergroup table (assigns user to plan group for speed limits)
+        await this.syncUserToRadusergroup(username, planCode);
       } else {
         logger.info(`RADIUS user ${username} disabled (radcheck records removed)`);
+        
+        // Remove user from radusergroup when disabled
+        await this.syncUserToRadusergroup(username, null);
       }
     } catch (error) {
       logger.error(`Failed to sync RADIUS user ${config.username}:`, error);
       // Don't throw - allow the operation to continue even if RADIUS sync fails
+    }
+  }
+
+  // Sync user to radusergroup table (assigns user to plan group)
+  private async syncUserToRadusergroup(username: string, planCode?: string | null): Promise<void> {
+    try {
+      // Check if radusergroup table exists
+      const tableExists = await prisma.$queryRaw`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'radusergroup'
+        ) as exists
+      ` as { exists: boolean }[];
+
+      if (!tableExists[0]?.exists) {
+        logger.warn('FreeRADIUS radusergroup table not found, skipping user group assignment');
+        return;
+      }
+
+      // Delete existing radusergroup records for this user
+      await prisma.$executeRaw`
+        DELETE FROM radusergroup WHERE username = ${username}
+      `;
+
+      // If planCode is null/undefined, just remove the user (disabled state)
+      if (!planCode) {
+        logger.info(`RADIUS user ${username} removed from radusergroup (disabled)`);
+        return;
+      }
+
+      const groupname = `plan_${planCode.toLowerCase()}`;
+
+      // Insert user into plan group
+      await prisma.$executeRaw`
+        INSERT INTO radusergroup (username, groupname, priority)
+        VALUES (${username}, ${groupname}, 10)
+      `;
+
+      logger.info(`RADIUS user ${username} assigned to group '${groupname}'`);
+    } catch (error) {
+      logger.error(`Failed to sync user ${username} to radusergroup:`, error);
     }
   }
 
@@ -760,10 +817,18 @@ class RadiusService {
       return;
     }
 
+    // Get current plan code for group assignment
+    const subscription = await prisma.subscription.findFirst({
+      where: { customerId, status: 'ACTIVE' },
+      include: { plan: true },
+    });
+    const planCode = subscription?.plan?.code;
+
     await this.syncUserToRadius({
       username: radiusConfig.username,
       password: radiusConfig.password,
       isActive: false,
+      planCode,
     });
 
     // Also disconnect any active sessions
@@ -780,6 +845,13 @@ class RadiusService {
       throw new AppError('RADIUS config not found', 404);
     }
 
+    // Get current plan code for group assignment
+    const subscription = await prisma.subscription.findFirst({
+      where: { customerId, status: 'ACTIVE' },
+      include: { plan: true },
+    });
+    const planCode = subscription?.plan?.code;
+
     // Note: We need the plaintext password to restore, but we only have the hash
     // In practice, you'd either:
     // 1. Store the plaintext temporarily
@@ -793,6 +865,7 @@ class RadiusService {
       username: radiusConfig.username,
       password: plaintext,
       isActive: true,
+      planCode,
     });
 
     logger.info(`RADIUS user ${radiusConfig.username} re-enabled`);
