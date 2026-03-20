@@ -70,8 +70,9 @@
 # Define WiFi channel
 /interface wifi channel add name=ch-2ghz band=2ghz-n/ac channel-width=20/40mhz-ce frequency=2437
 
-# Create WiFi security profile (open)
-/interface wifi security add name=open-sec authentication-types=wpa2-psk disable-pmf=yes
+# Create WiFi security profile (open - no password)
+# For open hotspot, we use authentication-types=none
+/interface wifi security add name=open-sec authentication-types=none
 
 # Create WiFi AP (standalone mode)
 /interface wifi add name=wifi1 ssid=$WIFI_SSID security=open-sec disabled=no channel=ch-2ghz
@@ -98,12 +99,11 @@
 # ---------------------------
 /ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.199
 
-/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d html-directory=hotspot
-
-# Create hotspot redirect file
-/file create name=hotspot/login.html contents="<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=https://isp.spidmax.win/hotspot/login.html?mac=\$(mac)&ip=\$(ip)\"></head><body><p>Redirecting...</p></body></html>"
+/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d
 
 /ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot-pool profile=hotspot-radius disabled=no local-address=192.168.88.1
+
+# Note: For custom hotspot login page, upload hotspot/ directory via Winbox > Files
 
 # ---------------------------
 # 7. PPPoE Server (Wired customers)
@@ -117,9 +117,22 @@
 # ---------------------------
 # 8. Firewall Rules
 # ---------------------------
+# Allow RADIUS traffic to FreeRADIUS server
 /ip firewall filter add chain=output dst-address=10.8.0.1 protocol=udp dst-port=1812,1813 action=accept comment="Allow RADIUS"
 
+# Allow Hotspot HTTP/HTTPS
 /ip firewall filter add chain=input protocol=tcp dst-port=80,443 in-interface=bridge action=accept comment="Allow Hotspot"
+
+# Block WAN → LAN (protect customers from each other)
+/ip firewall filter add chain=forward in-interface=$WAN_INTERFACE out-interface=bridge action=drop comment="Block WAN to LAN"
+
+# Allow established/related connections
+/ip firewall filter add chain=forward connection-state=established,related action=accept comment="Allow established"
+
+# Block private IP ranges from WAN (sanity check)
+/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=192.168.0.0/16 action=drop
+/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=10.0.0.0/8 action=drop
+/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=172.16.0.0/12 action=drop
 
 # ---------------------------
 # 9. DNS
@@ -128,12 +141,27 @@
 /ip dns static add name=router.lan address=192.168.88.1
 
 # ---------------------------
-# 10. Queue Tree
+# 10. Queue Types (PCQ for per-user speed limits)
 # ---------------------------
-/queue tree add name=global-down parent=global max-limit=100M priority=8 queue-type=default
-/queue tree add name=global-up parent=global max-limit=50M priority=8 queue-type=default
+# PCQ (Per Connection Queue) - limits download per user
+/queue type add name=pcq-download kind=pcq pcq-rate=0 pcq-classifier=dst-address
+
+# PCQ - limits upload per user
+/queue type add name=pcq-upload kind=pcq pcq-rate=0 pcq-classifier=src-address
+
+# Default queues for the bridge (will be overridden by RADIUS attributes)
+/queue simple add name=hotspot-users target=192.168.88.0/24 queue=pcq-upload/pcq-download total-queue=pcq-upload disabled=no
+
+/queue simple add name=pppoe-users target=192.168.88.200-192.168.88.250 queue=pcq-upload/pcq-download total-queue=pcq-upload disabled=no
 
 # ============================================================================
 # END OF SCRIPT
 # ============================================================================
-# Variables to edit: RADIUS_SECRET, WIFI_SSID, WLAN_INTERFACE
+
+# RADIUS Bandwidth Attributes (configure in FreeRADIUS):
+# MikroTik-Rate-Limit = "10M/20M" (upload/download in bits)
+# Rate-Min-Limit = minimum guaranteed bandwidth
+# Rate-Max-Limit = maximum bandwidth cap
+#
+# Example SQL query for Mikrotik-DHCP-Max-Lease-Time and Mikrotik-Rate-Limit
+# ============================================================================
