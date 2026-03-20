@@ -221,8 +221,12 @@ class CustomerController {
         return { user, customer };
       });
 
-      // Create RADIUS user
-      await radiusService.createRadiusUser(result.customer.id);
+      // Create RADIUS user (don't fail if RADIUS is unavailable)
+      try {
+        await radiusService.createRadiusUser(result.customer.id);
+      } catch (radiusError) {
+        logger.warn(`RADIUS user creation failed for ${customerCode}:`, radiusError);
+      }
 
       // Send welcome SMS
       if (phone) {
