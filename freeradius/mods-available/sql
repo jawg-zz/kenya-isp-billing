@@ -2,11 +2,11 @@ sql {
     driver = "rlm_sql_postgresql"
     dialect = "postgresql"
 
-    server = "${ENV:RADIUS_DB_HOST}"
-    port = ${ENV:RADIUS_DB_PORT}
-    login = "${ENV:POSTGRES_USER}"
-    password = "${ENV:POSTGRES_PASSWORD}"
-    radius_db = "${ENV:POSTGRES_DB}"
+    server = "__RADIUS_DB_HOST__"
+    port = __RADIUS_DB_PORT__
+    login = "__POSTGRES_USER__"
+    password = "__POSTGRES_PASSWORD__"
+    radius_db = "__POSTGRES_DB__"
 
     acct_table1 = "radacct"
     acct_table2 = "radacct"

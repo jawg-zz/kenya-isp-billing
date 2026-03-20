@@ -11,12 +11,12 @@ RADIUS_SECRET="${RADIUS_SECRET:-changeme_use_strong_secret}"
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
-# Configure SQL module with real credentials
-sed -i "s|server = \"postgres\"|server = \"${RADIUS_DB_HOST}\"|" "${RADDIR}/mods-available/sql"
-sed -i "s|port = 5432|port = ${RADIUS_DB_PORT}|" "${RADDIR}/mods-available/sql"
-sed -i "s|login = \"isp_billing\"|login = \"${POSTGRES_USER}\"|" "${RADDIR}/mods-available/sql"
-sed -i "s|password = \"CHANGEME\"|password = \"${POSTGRES_PASSWORD}\"|" "${RADDIR}/mods-available/sql"
-sed -i "s|radius_db = \"isp_billing\"|radius_db = \"${POSTGRES_DB}\"|" "${RADDIR}/mods-available/sql"
+# Configure SQL module with real credentials (using placeholder format)
+sed -i "s|server = \"__RADIUS_DB_HOST__\"|server = \"${RADIUS_DB_HOST}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|port = __RADIUS_DB_PORT__|port = ${RADIUS_DB_PORT}|" "${RADDIR}/mods-available/sql"
+sed -i "s|login = \"__POSTGRES_USER__\"|login = \"${POSTGRES_USER}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|password = \"__POSTGRES_PASSWORD__\"|password = \"${POSTGRES_PASSWORD}\"|" "${RADDIR}/mods-available/sql"
+sed -i "s|radius_db = \"__POSTGRES_DB__\"|radius_db = \"${POSTGRES_DB}\"|" "${RADDIR}/mods-available/sql"
 
 # Configure clients with real secret
 sed -i "s|\${RADIUS_SECRET}|${RADIUS_SECRET}|g" "${RADDIR}/clients.conf"
