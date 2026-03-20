@@ -4,11 +4,11 @@
 /ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
 /radius add address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2
 /ppp aaa set use-radius=yes
-/ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.199
-/ip pool add name=pppoe-pool ranges=192.168.88.200-192.168.88.250
+/ip pool add name=hotspot ranges=192.168.88.31-192.168.88.199
+/ip pool add name=pppoe ranges=192.168.88.200-192.168.88.250
 /ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes
-/ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot-pool profile=hotspot-radius
-/ppp profile add name=pppoe-radius local-address=192.168.88.1 remote-address=pppoe-pool
+/ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot profile=hotspot-radius
+/ppp profile add name=pppoe-radius local-address=192.168.88.1 remote-address=pppoe
 /interface pppoe-server server add service-name=isp-pppoe interface=bridge default-profile=pppoe-radius
 /queue type add name=pcq-download kind=pcq
 /queue type add name=pcq-upload kind=pcq
