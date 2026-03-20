@@ -4,7 +4,7 @@
 /ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
 /radius add address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2
 /ppp aaa set use-radius=yes
-/interface wifi channel add name=ch-2ghz band=2ghz-n/ac
+/interface wifi channel add name=ch-2ghz band=2ghz-n
 /interface wifi security add name=open-sec authentication-types=none
 /interface wifi add name=wifi1 ssid="spidmax-wifi" security=open-sec disabled=no channel=ch-2ghz
 /interface bridge port add bridge=bridge interface=wifi1
