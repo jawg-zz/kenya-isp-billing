@@ -24,9 +24,7 @@
 # 0. SETUP VARIABLES - EDIT THESE
 # ---------------------------
 :local radiusSecret "CHANGE_ME"
-:local wifiSsid "spidmax-wifi"
 :local wanInterface "ether1"
-# Note: WiFi interface will be created as "wifi1"
 
 # WireGuard VPN - Already configured on server
 :local wgPrivateKey "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
@@ -75,22 +73,8 @@
 
 /ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade
 
-# ---------------------------
-# 3. WiFi Configuration (ROS 7.x)
-# ---------------------------
-# Define WiFi channel
-/interface wifi channel add name=ch2ghz band=2ghz-n
 
-# Create WiFi security profile (open - no password)
-# For open hotspot, we use no-authentication
-/interface wifi security add name=opensec no-authentication
-
-# Create WiFi AP (standalone mode)
-/interface wifi add name=wifi1 ssid=$wifiSsid security=opensec disabled=no channel=ch2ghz
-
-# Add WiFi to bridge
-/interface bridge port add bridge=bridge interface=wifi1
-
+# WiFi commands disabled - requires manual configuration in ROS 7.x
 # ---------------------------
 # 4. DHCP Server (Trusted devices)
 # ---------------------------
