@@ -99,7 +99,7 @@
 # ---------------------------
 /ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.199
 
-/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d
+/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d rate-limit=""
 
 /ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot-pool profile=hotspot-radius disabled=no local-address=192.168.88.1
 
@@ -110,7 +110,7 @@
 # ---------------------------
 /ip pool add name=pppoe-pool ranges=192.168.88.200-192.168.88.250
 
-/ppp profile add name=pppoe-radius local-address=192.168.88.1 remote-address=pppoe-pool use-encryption=required only-one=yes
+/ppp profile add name=pppoe-radius local-address=192.168.88.1 remote-address=pppoe-pool use-encryption=required only-one=yes rate-limit=""
 
 /interface pppoe-server server add service-name=isp-pppoe interface=bridge default-profile=pppoe-radius use-radius=yes accounting=yes disabled=no
 
