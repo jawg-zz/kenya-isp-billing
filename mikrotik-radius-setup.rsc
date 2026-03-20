@@ -90,7 +90,7 @@
 # ---------------------------
 /ip pool add name=hotspot-pool ranges=192.168.88.31-192.168.88.199
 
-/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d
+/ip hotspot profile add name=hotspot-radius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d html-directory=hotspot
 
 /ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot-pool profile=hotspot-radius disabled=no local-address=192.168.88.1
 
@@ -125,6 +125,12 @@
 # ============================================================================
 # END OF SCRIPT
 # ============================================================================
+# 
+# IMPORTANT: For Option B (custom redirect), you need to:
+# 1. Download login.html from: https://raw.githubusercontent.com/jawg-zz/kenya-isp-billing/main/frontend/public/hotspot/login.html
+# 2. Upload it to MikroTik via Winbox (Files section) into a folder named "hotspot"
+# 3. Or create the folder and file manually:
+#    /file print
+#    /file create name=hotspot/login.html contents="<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=https://isp.spidmax.win/hotspot/login.html?mac=\$(mac)&ip=\$(ip)\"></head><body><p>Redirecting...</p></body></html>"
+#
 # Variables to edit: RADIUS_SECRET, WIFI_SSID, WLAN_INTERFACE
-# After import, configure redirect manually (if needed):
-# /ip hotspot profile set hotspot-radius http-redirect=yes redirect-url=https://isp.spidmax.win/hotspot/login.html
