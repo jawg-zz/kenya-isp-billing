@@ -23,16 +23,16 @@
 # ---------------------------
 # 0. SETUP VARIABLES - EDIT THESE
 # ---------------------------
-:local radius_secret "CHANGE_ME"
-:local wifi_ssid "spidmax-wifi"
-:local wan_interface "ether1"
+:local radiussecret "CHANGE_ME"
+:local wifissid "spidmax-wifi"
+:local waninterface "ether1"
 # Note: WiFi interface will be created as "wifi1"
 
 # WireGuard VPN - Already configured on server
-:local wg_private_key "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
-:local wg_peer_pubkey "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
-:local wg_endpoint "vpn.spidmax.win:51820"
-:local wg_preshared_key "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
+:local wgprivatekey "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
+:local wgpeerpubkey "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
+:local wgendpoint "vpn.spidmax.win:51820"
+:local wgpresharedkey "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
 
 # ---------------------------
 # 1. Basic Network Setup
@@ -45,7 +45,7 @@
 
 :foreach i in=[/interface ethernet find] do={
   :local name [/interface ethernet get $i name]
-  :if ($name != $wan_interface) do={
+  :if ($name != $waninterface) do={
     /interface bridge port add bridge=bridge interface=$name
   }
 }
@@ -60,18 +60,18 @@
 # ---------------------------
 # 1b. WireGuard VPN
 # ---------------------------
-/interface wireguard add name=wg-vpn private-key=$wg_private_key listen-port=51820 mtu=1420
+/interface wireguard add name=wg-vpn private-key=$wgprivatekey listen-port=51820 mtu=1420
 
-/interface wireguard peers add interface=wg-vpn public-key=$wg_peer_pubkey endpoint-address=$wg_endpoint preshared-key=$wg_preshared_key persistent-keepalive=25s allowed-address=10.8.0.0/24
+/interface wireguard peers add interface=wg-vpn public-key=$wgpeerpubkey endpoint-address=$wgendpoint preshared-key=$wgpresharedkey persistent-keepalive=25s allowed-address=10.8.0.0/24
 
 /ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
 
 # ---------------------------
 # 2. WAN Configuration
 # ---------------------------
-/ip dhcp-client add interface=$wan_interface disabled=no comment="WAN"
+/ip dhcp-client add interface=$waninterface disabled=no comment="WAN"
 
-/interface list member add list=WAN interface=$wan_interface comment="WAN"
+/interface list member add list=WAN interface=$waninterface comment="WAN"
 
 /ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade
 
@@ -86,7 +86,7 @@
 /interface wifi security add name=opensec authentication-types=none
 
 # Create WiFi AP (standalone mode)
-/interface wifi add name=wifi1 ssid=$wifi_ssid security=opensec disabled=no channel=ch2ghz
+/interface wifi add name=wifi1 ssid=$wifissid security=opensec disabled=no channel=ch2ghz
 
 # Add WiFi to bridge
 /interface bridge port add bridge=bridge interface=wifi1
@@ -101,7 +101,7 @@
 # ---------------------------
 # 5. RADIUS Client
 # ---------------------------
-/radius add service=hotspot,ppp address=10.8.0.1 secret=$radius_secret authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
+/radius add service=hotspot,ppp address=10.8.0.1 secret=$radiussecret authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
 
 /ppp aaa set use-radius=yes radius-accounting=yes interim-update=5m
 
