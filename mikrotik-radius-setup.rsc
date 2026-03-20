@@ -82,8 +82,8 @@
 /interface wifi channel add name=ch2ghz band=2ghz-n
 
 # Create WiFi security profile (open - no password)
-# For open hotspot, we use authentication-types=no-authentication
-/interface wifi security add name=opensec authentication-types=no-authentication
+# For open hotspot, we use no-authentication
+/interface wifi security add name=opensec no-authentication
 
 # Create WiFi AP (standalone mode)
 /interface wifi add name=wifi1 ssid=$wifiSsid security=opensec disabled=no channel=ch2ghz
