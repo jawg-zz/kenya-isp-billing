@@ -5,7 +5,8 @@
 /interface wireguard peers add interface=wg-vpn public-key="L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw=" endpoint-address="vpn.spidmax.win:51820" preshared-key="4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo=" persistent-keepalive=25s allowed-address=10.8.0.0/24
 /ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
 
-/radius add service=hotspot,ppp address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
+/radius add service=hotspot address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
+/radius add service=ppp address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
 /ppp aaa set use-radius=yes radius-accounting=yes interim-update=5m
 
 /interface wifi channel add name=ch-2ghz band=2ghz-n/ac channel-width=20/40mhz-ce frequency=2437
