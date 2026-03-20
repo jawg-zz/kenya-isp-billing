@@ -26,7 +26,7 @@
 :local RADIUS_SECRET "CHANGE_ME"
 :local WIFI_SSID "spidmax-wifi"
 :local WAN_INTERFACE "ether1"
-:local WLAN_INTERFACE "wlan1"
+# Note: WiFi interface will be created as "wifi1"
 
 # WireGuard VPN - Already configured on server
 :local WG_PRIVATE_KEY "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
@@ -65,11 +65,19 @@
 /ip firewall nat add chain=srcnat out-interface=$WAN_INTERFACE action=masquerade
 
 # ---------------------------
-# 3. WiFi Configuration (Open)
+# 3. WiFi Configuration (ROS 7.x)
 # ---------------------------
-/interface wireless set $WLAN_INTERFACE mode=ap-bridge band=2ghz-b/g/n channel-width=20/40mhz-Ce ssid=$WIFI_SSID security-profile=default disabled=no
+# Define WiFi channel
+/interface wifi channel add name=ch-2ghz band=2ghz-n/ac channel-width=20/40mhz-ce frequency=2437
 
-/interface bridge port add bridge=bridge interface=$WLAN_INTERFACE
+# Create WiFi security profile (open)
+/interface wifi security add name=open-sec authentication-types=wpa2-psk disable-pmf=yes
+
+# Create WiFi AP (standalone mode)
+/interface wifi add name=wifi1 ssid=$WIFI_SSID security=open-sec disabled=no channel=ch-2ghz
+
+# Add WiFi to bridge
+/interface bridge port add bridge=bridge interface=wifi1
 
 # ---------------------------
 # 4. DHCP Server (Trusted devices)
