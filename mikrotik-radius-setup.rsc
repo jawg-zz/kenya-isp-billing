@@ -37,7 +37,11 @@
 # ---------------------------
 # 1. Basic Network Setup
 # ---------------------------
-/interface bridge add name=bridge disabled=no
+/interface bridge add name=bridge disabled=no protocol-mode=rstp comment="LAN bridge"
+
+# Define interface lists for firewall
+/interface list add name=LAN comment="LAN interfaces"
+/interface list add name=WAN comment="WAN interfaces"
 
 :foreach i in=[/interface ethernet find] do={
   :local name [/interface ethernet get $i name]
@@ -45,6 +49,11 @@
     /interface bridge port add bridge=bridge interface=$name
   }
 }
+
+/interface list member add list=LAN interface=bridge comment="LAN"
+
+# Add WAN to WAN list (after dhcp-client is added)
+# We'll add this at the end
 
 /ip address add address=192.168.88.1/24 interface=bridge comment="LAN"
 
@@ -62,7 +71,9 @@
 # ---------------------------
 /ip dhcp-client add interface=$WAN_INTERFACE disabled=no comment="WAN"
 
-/ip firewall nat add chain=srcnat out-interface=$WAN_INTERFACE action=masquerade
+/interface list member add list=WAN interface=$WAN_INTERFACE comment="WAN"
+
+/ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade
 
 # ---------------------------
 # 3. WiFi Configuration (ROS 7.x)
@@ -117,22 +128,24 @@
 # ---------------------------
 # 8. Firewall Rules
 # ---------------------------
+# Input chain - protect the router
+/ip firewall filter add chain=input action=accept connection-state=established,related,untracked comment="Accept established,related,untracked"
+/ip firewall filter add chain=input action=accept protocol=icmp comment="Accept ICMP"
+/ip firewall filter add chain=input action=accept dst-address=127.0.0.1 comment="Accept to local loopback"
+/ip firewall filter add chain=input action=drop connection-state=invalid comment="Drop invalid"
+/ip firewall filter add chain=input action=drop in-interface-list=!LAN comment="Drop all not from LAN"
+
+# Forward chain - protect LAN
+/ip firewall filter add chain=forward action=fasttrack-connection connection-state=established,related comment="Fasttrack"
+/ip firewall filter add chain=forward action=accept connection-state=established,related,untracked comment="Accept established,related"
+/ip firewall filter add chain=forward action=drop connection-state=invalid comment="Drop invalid"
+/ip firewall filter add chain=forward action=drop connection-state=new connection-nat-state=!dstnat in-interface-list=WAN comment="Drop WAN not DSTNATed"
+
 # Allow RADIUS traffic to FreeRADIUS server
 /ip firewall filter add chain=output dst-address=10.8.0.1 protocol=udp dst-port=1812,1813 action=accept comment="Allow RADIUS"
 
 # Allow Hotspot HTTP/HTTPS
 /ip firewall filter add chain=input protocol=tcp dst-port=80,443 in-interface=bridge action=accept comment="Allow Hotspot"
-
-# Block WAN → LAN (protect customers from each other)
-/ip firewall filter add chain=forward in-interface=$WAN_INTERFACE out-interface=bridge action=drop comment="Block WAN to LAN"
-
-# Allow established/related connections
-/ip firewall filter add chain=forward connection-state=established,related action=accept comment="Allow established"
-
-# Block private IP ranges from WAN (sanity check)
-/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=192.168.0.0/16 action=drop
-/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=10.0.0.0/8 action=drop
-/ip firewall filter add chain=input in-interface=$WAN_INTERFACE src-address=172.16.0.0/12 action=drop
 
 # ---------------------------
 # 9. DNS
