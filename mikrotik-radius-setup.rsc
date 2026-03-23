@@ -1,158 +1,272 @@
-# ============================================================================
-# MikroTik RADIUS Integration Script - Clean Slate Version (FIXED)
-# ============================================================================
-# Configures a blank MikroTik (no default config) with:
-# - WireGuard VPN (tunnel to RADIUS server via vpn.spidmax.win)
-# - WiFi Hotspot (captive portal for wireless customers)
-# - PPPoE Server (for wired Ethernet customers)
-# - RADIUS authentication (FreeRADIUS on 10.8.0.1)
-# - Speed limiting via RADIUS attributes
+# MikroTik RADIUS Configuration for ISP Billing System
+# Generated: 2026-03-23
+# 
+# INSTRUCTIONS:
+# 1. Replace <BILLING_SYSTEM_IP> with your billing system's IP address
+# 2. Replace <SHARED_SECRET> with a strong secret (must match NAS registration)
+# 3. Adjust IP pools and interface names for your network
+# 4. Run this script via: /import mikrotik-radius-setup.rsc
+
+# ============================================
+# RADIUS CLIENT CONFIGURATION
+# ============================================
+
+# Add RADIUS server for authentication and accounting
+/radius
+add address=<BILLING_SYSTEM_IP> \
+    secret=<SHARED_SECRET> \
+    service=ppp,hotspot,login \
+    timeout=3s \
+    comment="ISP Billing System RADIUS"
+
+# Enable RADIUS for PPPoE authentication
+/ppp aaa
+set accounting=yes \
+    interim-update=5m \
+    use-radius=yes
+
+# Enable incoming RADIUS CoA (Change of Authorization)
+# This allows the billing system to disconnect users or change speed limits
+/radius incoming
+set accept=yes
+
+# ============================================
+# PPPoE SERVER CONFIGURATION
+# ============================================
+
+# Create IP pool for PPPoE clients
+/ip pool
+add name=pppoepool ranges=10.10.10.2-10.10.10.254 comment="PPPoE Client Pool"
+
+# Create PPPoE profile with RADIUS
+/ppp profile
+add name=pppoe-radius \
+    local-address=10.10.10.1 \
+    remote-address=pppoepool \
+    use-compression=no \
+    use-encryption=no \
+    use-mpls=no \
+    use-upnp=no \
+    only-one=yes \
+    comment="PPPoE Profile with RADIUS"
+
+# Enable PPPoE server on your LAN interface
+# Replace 'ether2' with your actual LAN interface
+/interface pppoe-server server
+add authentication=pap,chap,mschap1,mschap2 \
+    default-profile=pppoe-radius \
+    disabled=no \
+    interface=ether2 \
+    keepalive-timeout=60 \
+    max-mru=1480 \
+    max-mtu=1480 \
+    mrru=disabled \
+    service-name=ISP \
+    comment="PPPoE Server for RADIUS"
+
+# ============================================
+# HOTSPOT CONFIGURATION (OPTIONAL)
+# ============================================
+
+# Create IP pool for Hotspot clients
+/ip pool
+add name=hotspotpool ranges=10.20.20.2-10.20.20.254 comment="Hotspot Client Pool"
+
+# Create Hotspot profile with RADIUS
+/ip hotspot profile
+add name=hotspot-radius \
+    dns-name=login.isp.local \
+    hotspot-address=10.20.20.1 \
+    html-directory=hotspot \
+    http-cookie-lifetime=1d \
+    http-proxy=0.0.0.0:0 \
+    login-by=http-chap,http-pap \
+    name=hotspot-radius \
+    rate-limit="" \
+    smtp-server=0.0.0.0 \
+    split-user-domain=no \
+    use-radius=yes \
+    comment="Hotspot Profile with RADIUS"
+
+# Create Hotspot server profile
+/ip hotspot server profile
+set [find name=hotspot-radius] \
+    login-by=http-chap,http-pap,cookie \
+    use-radius=yes
+
+# Setup Hotspot on interface (replace 'ether3' with your hotspot interface)
+# Uncomment and configure if using Hotspot:
+# /ip hotspot setup
+# hotspot-interface: ether3
+# local-address: 10.20.20.1
+# address-pool: hotspotpool
+# certificate: none
+# smtp-server: 0.0.0.0
+# dns-server: 8.8.8.8
+# dns-name: login.isp.local
+# profile: hotspot-radius
+
+# ============================================
+# RADIUS ACCOUNTING CONFIGURATION
+# ============================================
+
+# Configure accounting intervals
+/radius
+set [find address=<BILLING_SYSTEM_IP>] \
+    accounting-backup=no \
+    accounting-port=1813 \
+    authentication-port=1812 \
+    called-id="" \
+    domain="" \
+    realm="" \
+    src-address=0.0.0.0
+
+# ============================================
+# FIREWALL RULES FOR RADIUS
+# ============================================
+
+# Allow RADIUS traffic from billing system
+/ip firewall filter
+add action=accept \
+    chain=input \
+    comment="Allow RADIUS Auth from Billing System" \
+    dst-port=1812 \
+    protocol=udp \
+    src-address=<BILLING_SYSTEM_IP>
+
+add action=accept \
+    chain=input \
+    comment="Allow RADIUS Accounting from Billing System" \
+    dst-port=1813 \
+    protocol=udp \
+    src-address=<BILLING_SYSTEM_IP>
+
+add action=accept \
+    chain=input \
+    comment="Allow RADIUS CoA from Billing System" \
+    dst-port=3799 \
+    protocol=udp \
+    src-address=<BILLING_SYSTEM_IP>
+
+# ============================================
+# RATE LIMITING CONFIGURATION
+# ============================================
+
+# MikroTik will receive rate limits from RADIUS via MikroTik-Rate-Limit attribute
+# Format: <upload-rate>/<download-rate>
+# Example: 10000000/10000000 (10 Mbps up/down)
+
+# Create queue tree for RADIUS-based rate limiting (optional, for advanced setups)
+# /queue tree
+# add name=radius-upload parent=global queue=default
+# add name=radius-download parent=global queue=default
+
+# ============================================
+# LOGGING CONFIGURATION
+# ============================================
+
+# Enable RADIUS logging for troubleshooting
+/system logging
+add action=memory \
+    prefix="RADIUS" \
+    topics=radius,debug
+
+# ============================================
+# TESTING COMMANDS
+# ============================================
+
+# After configuration, test with these commands:
+# 
+# 1. Check RADIUS server status:
+#    /radius print detail
 #
-# Prerequisites:
-# - RouterOS 7.x (after reset with NO default configuration)
-# - WireGuard server running at vpn.spidmax.win
-# - FreeRADIUS running on docker at 10.8.0.1
+# 2. Monitor RADIUS authentication attempts:
+#    /log print where topics~"radius"
 #
-# Usage:
-# 1. Edit variables at the top (RADIUS_SECRET, WIFI_SSID, WLAN_INTERFACE)
-# 2. Reset MikroTik with "No Default Configuration"
-# 3. Set admin password: /user set admin password=YourPassword
-# 4. Upload via Winbox > Files > /import file-name=mikrotik-radius-setup.rsc
-# ============================================================================
-
-# ---------------------------
-# 0. SETUP VARIABLES - EDIT THESE
-# ---------------------------
-:local radiusSecret "CHANGE_ME"
-:local wanInterface "ether1"
-
-# WireGuard VPN - Already configured on server
-:local wgPrivateKey "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
-:local wgPeerPubkey "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
-:local wgEndpoint "vpn.spidmax.win:51820"
-:local wgPresharedKey "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
-
-# ---------------------------
-# 1. Basic Network Setup
-# ---------------------------
-/interface bridge add name=bridge disabled=no protocol-mode=rstp comment="LAN bridge"
-
-# Define interface lists for firewall
-/interface list add name=LAN comment="LAN interfaces"
-/interface list add name=WAN comment="WAN interfaces"
-
-:foreach i in=[/interface ethernet find] do={
-  :local name [/interface ethernet get $i name]
-  :if ($name != $wanInterface) do={
-    /interface bridge port add bridge=bridge interface=$name
-  }
-}
-
-/interface list member add list=LAN interface=bridge comment="LAN"
-
-# Add WAN to WAN list (after dhcp-client is added)
-# We'll add this at the end
-
-/ip address add address=192.168.88.1/24 interface=bridge comment="LAN"
-
-# ---------------------------
-# 1b. WireGuard VPN
-# ---------------------------
-/interface wireguard add name=wg-vpn private-key=$wgPrivateKey listen-port=51820 mtu=1420
-
-/interface wireguard peers add interface=wg-vpn public-key=$wgPeerPubkey endpoint-address=$wgEndpoint preshared-key=$wgPresharedKey persistent-keepalive=25s allowed-address=10.8.0.0/24
-
-/ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
-
-# ---------------------------
-# 2. WAN Configuration
-# ---------------------------
-/ip dhcp-client add interface=$wanInterface disabled=no comment="WAN"
-
-/interface list member add list=WAN interface=$wanInterface comment="WAN"
-
-/ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade
-
-
-# WiFi commands disabled - requires manual configuration in ROS 7.x
-# ---------------------------
-# 4. DHCP Server (Trusted devices)
-# ---------------------------
-/ip pool add name=dhcp ranges=192.168.88.10-192.168.88.30
-/ip dhcp-server add name=dhcp-local address-pool=dhcp interface=bridge disabled=no
-/ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=192.168.88.1
-
-# ---------------------------
-# 5. RADIUS Client
-# ---------------------------
-/radius add service=hotspot,ppp address=10.8.0.1 secret=$radiusSecret authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 timeout=3000ms tries=3 disabled=no
-
-/ppp aaa set use-radius=yes radius-accounting=yes interim-update=5m
-
-# ---------------------------
-# 6. Hotspot (WiFi customers)
-# ---------------------------
-/ip pool add name=hotspot ranges=192.168.88.31-192.168.88.199
-
-/ip hotspot profile add name=hotspotradius login-by=http-chap use-radius=yes radius-accounting=yes interim-update=1d rate-limit=""
-
-/ip hotspot add name=hotspot1 interface=bridge address-pool=hotspot profile=hotspotradius disabled=no local-address=192.168.88.1
-
-# Note: For custom hotspot login page, upload hotspot/ directory via Winbox > Files
-
-# ---------------------------
-# 7. PPPoE Server (Wired customers)
-# ---------------------------
-/ip pool add name=pppoe ranges=192.168.88.200-192.168.88.250
-
-/ppp profile add name=pppoeradius local-address=192.168.88.1 remote-address=pppoe use-encryption=required only-one=yes rate-limit=""
-
-/interface pppoe-server server add service-name=isp-pppoe interface=bridge default-profile=pppoeradius use-radius=yes accounting=yes disabled=no
-
-# ---------------------------
-# 8. Firewall Rules
-# ---------------------------
-# Input chain - protect the router
-/ip firewall filter add chain=input action=accept connection-state=established,related,untracked comment="Accept established,related,untracked"
-/ip firewall filter add chain=input action=accept protocol=icmp comment="Accept ICMP"
-/ip firewall filter add chain=input action=accept dst-address=127.0.0.1 comment="Accept to local loopback"
-/ip firewall filter add chain=input action=drop connection-state=invalid comment="Drop invalid"
-/ip firewall filter add chain=input action=drop in-interface-list=!LAN comment="Drop all not from LAN"
-
-# Forward chain - protect LAN
-/ip firewall filter add chain=forward action=fasttrack-connection connection-state=established,related comment="Fasttrack"
-/ip firewall filter add chain=forward action=accept connection-state=established,related,untracked comment="Accept established,related"
-/ip firewall filter add chain=forward action=drop connection-state=invalid comment="Drop invalid"
-/ip firewall filter add chain=forward action=drop connection-state=new connection-nat-state=!dstnat in-interface-list=WAN comment="Drop WAN not DSTNATed"
-
-# Allow RADIUS traffic to FreeRADIUS server
-/ip firewall filter add chain=output dst-address=10.8.0.1 protocol=udp dst-port=1812,1813 action=accept comment="Allow RADIUS"
-
-# Allow Hotspot HTTP/HTTPS
-/ip firewall filter add chain=input protocol=tcp dst-port=80,443 in-interface=bridge action=accept comment="Allow Hotspot"
-
-# ---------------------------
-# 9. DNS
-# ---------------------------
-/ip dns set allow-remote-requests=yes
-/ip dns static add name=router.lan address=192.168.88.1
-
-# ---------------------------
-# 10. Queue Types (PCQ for per-user speed limits)
-# ---------------------------
-/queue type add name=pcqdownload kind=pcq pcq-rate=0 pcq-classifier=dst-address
-/queue type add name=pcqupload kind=pcq pcq-rate=0 pcq-classifier=src-address
-/queue simple add name=hotspotusers target=192.168.88.0/24 queue=pcqupload/pcqdownload total-queue=pcqupload disabled=no
-/queue simple add name=pppoeusers target=192.168.88.200-192.168.88.250 queue=pcqupload/pcqdownload total-queue=pcqupload disabled=no
-
-# ============================================================================
-# END OF SCRIPT
-# ============================================================================
-
-# RADIUS Bandwidth Attributes (configure in FreeRADIUS):
-# MikroTik-Rate-Limit = "10M/20M" (upload/download in bits)
-# Rate-Min-Limit = minimum guaranteed bandwidth
-# Rate-Max-Limit = maximum bandwidth cap
+# 3. View active PPPoE sessions:
+#    /ppp active print
 #
-# Example SQL query for Mikrotik-DHCP-Max-Lease-Time and Mikrotik-Rate-Limit
-# ============================================================================
+# 4. View active Hotspot sessions:
+#    /ip hotspot active print
+#
+# 5. Test RADIUS authentication manually:
+#    /radius incoming monitor
+#
+# 6. Check if CoA is working:
+#    /radius incoming print
+#
+# 7. View current rate limits applied:
+#    /queue simple print
+
+# ============================================
+# TROUBLESHOOTING
+# ============================================
+
+# If authentication fails:
+# 1. Check RADIUS server is reachable: /ping <BILLING_SYSTEM_IP>
+# 2. Verify shared secret matches NAS registration
+# 3. Check firewall rules allow UDP 1812, 1813, 3799
+# 4. Review logs: /log print where topics~"radius"
+# 5. Verify customer has active subscription in billing system
+# 6. Check RADIUS user is active: GET /api/v1/radius/customers/<customer-id>
+
+# If CoA doesn't work:
+# 1. Verify /radius incoming accept=yes
+# 2. Check firewall allows UDP 3799 from billing system
+# 3. Test with: /radius incoming monitor
+# 4. Check billing system logs for CoA send confirmation
+
+# If speed limits not applied:
+# 1. Verify plan has speedLimit set in billing system
+# 2. Check radgroupreply table has MikroTik-Rate-Limit attribute
+# 3. Sync plans to RADIUS: POST /api/v1/radius/plans/sync
+# 4. Check user is in correct plan group: radusergroup table
+
+# ============================================
+# SECURITY RECOMMENDATIONS
+# ============================================
+
+# 1. Use a strong shared secret (32+ characters, random)
+# 2. Restrict RADIUS traffic to billing system IP only (firewall rules above)
+# 3. Use encrypted PPPoE (mschap2) when possible
+# 4. Enable RADIUS accounting to track all sessions
+# 5. Regularly review active sessions and disconnect stale ones
+# 6. Monitor RADIUS logs for failed authentication attempts
+# 7. Keep MikroTik RouterOS updated to latest stable version
+
+# ============================================
+# NEXT STEPS
+# ============================================
+
+# 1. Register this MikroTik as NAS device in billing system:
+#    POST /api/v1/radius/nas
+#    {
+#      "nasname": "<MIKROTIK_IP>",
+#      "shortname": "mikrotik-main",
+#      "type": "mikrotik",
+#      "secret": "<SHARED_SECRET>",
+#      "ports": 1812
+#    }
+#
+# 2. Create test customer and subscription in billing system
+#
+# 3. Get RADIUS credentials:
+#    GET /api/v1/radius/customers/<customer-id>
+#
+# 4. Test PPPoE login with returned username/password
+#
+# 5. Verify session appears in billing system:
+#    GET /api/v1/radius/sessions
+#
+# 6. Test payment flow and verify CoA updates speed/disconnects
+
+# ============================================
+# CONFIGURATION COMPLETE
+# ============================================
+
+:log info "MikroTik RADIUS configuration loaded. Remember to:"
+:log info "1. Replace <BILLING_SYSTEM_IP> with actual IP"
+:log info "2. Replace <SHARED_SECRET> with strong secret"
+:log info "3. Adjust interface names (ether2, ether3) for your setup"
+:log info "4. Register this MikroTik as NAS device in billing system"
+:log info "5. Test with a customer account"
