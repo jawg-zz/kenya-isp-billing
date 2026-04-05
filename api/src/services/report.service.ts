@@ -1,5 +1,12 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
+
+// Raw query helpers - using Prisma's raw query capabilities
+const sanitizeDateFilter = (startDate?: string, endDate?: string) => {
+  const conditions: string[] = [];
+  if (startDate) conditions.push(`"createdAt" >= '${startDate}'`);
+  if (endDate) conditions.push(`"createdAt" <= '${endDate}'`);
+  return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+};
 
 export interface ReportPeriod {
   startDate?: string;
@@ -43,12 +50,12 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"createdAt" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"createdAt" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE role = 'CUSTOMER' AND ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql`WHERE role = 'CUSTOMER'`;
+      ? `WHERE role = 'CUSTOMER' AND ${dateConditions.join(' AND ')}`
+      : `WHERE role = 'CUSTOMER'`;
 
     const results = await prisma.$queryRaw<Array<{ period: Date; count: bigint }>>`
       SELECT ${truncate} as period, COUNT(*)::bigint as count
@@ -74,12 +81,12 @@ class ReportService {
         ? `DATE_TRUNC('week', "updatedAt")`
         : `DATE_TRUNC('day', "updatedAt")`;
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"updatedAt" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"updatedAt" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"updatedAt" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"updatedAt" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED') AND ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql`WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED')`;
+      ? `WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED') AND ${dateConditions.join(' AND ')}`
+      : `WHERE role = 'CUSTOMER' AND "accountStatus" IN ('TERMINATED', 'SUSPENDED')`;
 
     const results = await prisma.$queryRaw<Array<{ period: Date; churned: bigint; suspended: bigint }>>`
       SELECT ${truncate} as period,
@@ -153,12 +160,12 @@ class ReportService {
         ? `DATE_TRUNC('week', "timestamp")`
         : `DATE_TRUNC('day', "timestamp")`;
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"timestamp" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"timestamp" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"timestamp" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"timestamp" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{ period: Date; total_octets: bigint; record_count: bigint }>>`
       SELECT ${truncate} as period,
@@ -182,12 +189,12 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`ur."timestamp" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`ur."timestamp" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`ur."timestamp" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`ur."timestamp" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{
       user_id: string;
@@ -263,12 +270,12 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"timestamp" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"timestamp" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"timestamp" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"timestamp" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{ hour: number; total_octets: bigint; session_count: bigint }>>`
       SELECT EXTRACT(HOUR FROM "timestamp")::int as hour,
@@ -301,12 +308,12 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`ur."timestamp" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`ur."timestamp" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`ur."timestamp" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`ur."timestamp" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{
       plan_name: string;
@@ -346,12 +353,12 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"createdAt" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"createdAt" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{
       period: Date;
@@ -382,12 +389,12 @@ class ReportService {
     const { startDate, endDate } = params;
     const dateFilter = getDateFilter(startDate, endDate);
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`i."createdAt" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`i."createdAt" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`i."createdAt" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`i."createdAt" <= '${dateFilter.lte.toISOString()}'`);
     const dateWhereClause = dateConditions.length > 0
-      ? Prisma.sql` AND ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `AND ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{ avg_days: number }>>`
       SELECT AVG(EXTRACT(EPOCH FROM (i."paidAt" - i."createdAt")) / 86400)::float as avg_days
@@ -482,12 +489,12 @@ class ReportService {
         ? `DATE_TRUNC('week', "createdAt")`
         : `DATE_TRUNC('day', "createdAt")`;
 
-    const dateConditions: Prisma.Sql[] = [];
-    if (dateFilter?.gte) dateConditions.push(Prisma.sql`"createdAt" >= ${dateFilter.gte}`);
-    if (dateFilter?.lte) dateConditions.push(Prisma.sql`"createdAt" <= ${dateFilter.lte}`);
+    const dateConditions: string[] = [];
+    if (dateFilter?.gte) dateConditions.push(`"createdAt" >= '${dateFilter.gte.toISOString()}'`);
+    if (dateFilter?.lte) dateConditions.push(`"createdAt" <= '${dateFilter.lte.toISOString()}'`);
     const whereClause = dateConditions.length > 0
-      ? Prisma.sql`WHERE ${Prisma.join(dateConditions, ' AND ')}`
-      : Prisma.sql``;
+      ? `WHERE ${dateConditions.join(' AND ')}`
+      : '';
 
     const results = await prisma.$queryRaw<Array<{
       period: Date;

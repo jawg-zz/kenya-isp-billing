@@ -506,3 +506,33 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// Hotspot package purchases
+model HotspotPurchase {
+  id              String    @id @default(uuid())
+  reference       String    @unique
+  phone           String
+  packageId       String
+  packageName     String
+  amount          Decimal
+  speed           Int
+  dataAllowance   BigInt
+  durationHours   Int
+  macAddress      String?
+  clientIp        String?
+  status          String    @default("PENDING") // PENDING, PAID, FAILED
+  mpesaReceipt   String?
+  merchantRequestId String?
+  checkoutRequestId String?
+  radiusUsername  String?
+  radiusPassword  String?
+  paidAt          DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([status])
+  @@index([reference])
+  @@map("hotspot_purchases")
+}

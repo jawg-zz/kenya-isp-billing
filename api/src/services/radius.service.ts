@@ -61,6 +61,11 @@ class RadiusService {
       include: {
         user: true,
         radiusConfig: true,
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          include: { plan: true },
+          take: 1,
+        },
       },
     });
 
@@ -77,8 +82,8 @@ class RadiusService {
     const { plaintext, hashed } = await RadiusService.generatePassword();
 
     // Get active subscription to determine plan group
-    const subscription = customer.subscriptions?.find((s: any) => s.status === 'ACTIVE');
-    const planCode = subscription?.plan?.code || 'default';
+    const activeSubscription = customer.subscriptions?.[0];
+    const planCode = activeSubscription?.plan?.code || 'default';
 
     // Create RADIUS config with hashed password
     const radiusConfig = await prisma.radiusConfig.create({

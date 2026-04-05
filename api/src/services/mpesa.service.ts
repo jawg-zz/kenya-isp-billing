@@ -200,13 +200,11 @@ class MpesaService {
     const callbackId = MerchantRequestID || CheckoutRequestID;
     const idempotencyKey = `mpesa:callback:${callbackId}`;
 
+    let subscriptionId: string | undefined;
+    let customerId: string | undefined;
+
     try {
-      // Use transaction with row-level locking to prevent race conditions
-      // Two concurrent callbacks can both see status=PENDING without FOR UPDATE,
-      // causing double-credit of the customer balance.
       await prisma.$transaction(async (tx) => {
-        // Lock the payment row with SELECT ... FOR UPDATE before checking status.
-        // This serializes concurrent callbacks targeting the same payment.
         const lockedPayments = await tx.$queryRaw<any[]>`
           SELECT p.*, c."balance" as "customer_balance"
           FROM "Payment" p
@@ -226,13 +224,11 @@ class MpesaService {
           return;
         }
 
-        // If payment already processed, skip (safe now because row is locked)
         if (lockedPayment.status === 'COMPLETED' || lockedPayment.status === 'FAILED') {
           logger.warn(`Payment ${lockedPayment.id} already processed with status ${lockedPayment.status}`);
           return;
         }
 
-        // Fetch related data for processing
         const payment = await tx.payment.findUnique({
           where: { id: lockedPayment.id },
           include: {
@@ -243,7 +239,9 @@ class MpesaService {
 
         if (!payment) return;
 
-        // Extract callback metadata
+        subscriptionId = payment.subscriptionId;
+        customerId = payment.customerId;
+
         let mpesaReceiptNumber: string | undefined;
         let transactionDate: string | undefined;
         let phoneNumber: string | undefined;
@@ -264,7 +262,6 @@ class MpesaService {
           }
         }
 
-        // Update payment based on result code
         const updateData: any = {
           resultCode: ResultCode.toString(),
           resultDesc: ResultDesc,
@@ -277,7 +274,6 @@ class MpesaService {
         };
 
         if (ResultCode === 0) {
-          // Payment successful
           updateData.status = 'COMPLETED';
           updateData.reference = mpesaReceiptNumber;
           updateData.processedAt = new Date();
@@ -287,10 +283,8 @@ class MpesaService {
             data: updateData,
           });
 
-          // Process successful payment within same transaction
           await this.handleSuccessfulPaymentWithinTransaction(tx, payment);
         } else {
-          // Payment failed
           updateData.status = 'FAILED';
 
           await tx.payment.update({
@@ -304,7 +298,6 @@ class MpesaService {
             resultDesc: ResultDesc,
           });
 
-          // Notify customer of failed payment
           await tx.notification.create({
             data: {
               userId: payment.customer.userId,
@@ -318,7 +311,6 @@ class MpesaService {
       });
 
       // Transaction succeeded — set the idempotency key NOW (after successful processing)
-      // so that duplicate callbacks are correctly rejected.
       try {
         const { cache } = await import('../config/redis');
         await cache.set(idempotencyKey, { processedAt: new Date().toISOString() }, 86400);
@@ -327,10 +319,10 @@ class MpesaService {
       }
 
       // Invalidate RADIUS cache if subscription was activated/renewed
-      if (payment.subscriptionId) {
+      if (subscriptionId && customerId) {
         try {
           const { radiusService } = await import('./radius.service');
-          await radiusService.invalidateCacheForCustomer(payment.customerId);
+          await radiusService.invalidateCacheForCustomer(customerId);
         } catch (err) {
           logger.error('Failed to invalidate RADIUS cache after M-Pesa payment:', err);
         }

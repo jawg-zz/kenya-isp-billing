@@ -341,10 +341,11 @@ class AuthController {
   async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+      const notificationId = Array.isArray(id) ? id[0] : id;
 
       await prisma.notification.updateMany({
         where: {
-          id,
+          id: notificationId,
           userId: req.user!.id,
         },
         data: { readAt: new Date() },
