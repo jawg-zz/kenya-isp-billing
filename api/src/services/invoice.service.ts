@@ -183,7 +183,7 @@ class InvoiceService {
     });
   }
 
-  private drawHeader(doc: ReturnType<typeof PDFDocument>): void {
+  private drawHeader(doc: InstanceType<typeof PDFDocument>): void {
     // Company logo placeholder
     doc.fontSize(20).font('Helvetica-Bold')
       .text(config.invoice.companyName, 50, 50, { align: 'left' });
@@ -198,7 +198,7 @@ class InvoiceService {
     doc.moveTo(50, 140).lineTo(550, 140).stroke();
   }
 
-  private drawFooter(doc: ReturnType<typeof PDFDocument>): void {
+  private drawFooter(doc: InstanceType<typeof PDFDocument>): void {
     const pageHeight = doc.page.height;
     
     // Line separator
@@ -211,7 +211,7 @@ class InvoiceService {
       .text(`Generated on ${new Date().toLocaleString('en-KE')}`, 50, pageHeight - 40, { align: 'center' });
   }
 
-  private drawItemsTable(doc: ReturnType<typeof PDFDocument>, invoice: any): void {
+  private drawItemsTable(doc: InstanceType<typeof PDFDocument>, invoice: any): void {
     const metadata = invoice.metadata as any;
     const items: InvoiceItem[] = metadata?.items || [];
 
