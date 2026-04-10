@@ -31,7 +31,7 @@
 /ppp aaa set use-radius=yes accounting=yes interim-update=5m
 /radius incoming set accept=yes
 /interface wireguard add name=wgvpn listen-port=51820 mtu=1420 private-key="YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
-/interface wireguard peers add interface=wgvpn public-key="L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw=" preshared-key="4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo=" endpoint-address=vpn.spidmax.win:51820 persistent-keepalive=25 allowed-address=10.8.0.0/24
+/interface wireguard peers add interface=wgvpn public-key="L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw=" preshared-key="4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo=" endpoint-address=vpn.spidmax.win:51820 allowed-address=10.8.0.0/24
 /ip address add address=10.8.0.2/24 interface=wgvpn
 /ip dhcp-client add interface=ether1 disabled=no
 /queue type add name=pcqdownload kind=pcq pcq-rate=0 pcq-classifier=dst-address
