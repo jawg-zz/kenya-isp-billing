@@ -1,213 +1,122 @@
 # MikroTik Fresh Setup - ISP Billing Integration
-# For fully reset MikroTik router
-# Assumes: ether1=WAN (DHCP from ISP modem), ether2-5=LAN
-# ISP modem gateway: 192.168.88.1 (MikroTik LAN will use 192.168.89.1 to avoid conflict)
+# For fully reset MikroTik router (RouterOS 7.x)
+# Assumes: ether1=WAN (DHCP), ether2-5=LAN
 #
 # INSTRUCTIONS:
-# 1. Connect ether1 to your ISP modem
-# 2. Connect ether2-5 to your switch/PC
-# 3. Paste this entire script into Terminal
-# 4. Replace WIREGUARD_PRIVATE_KEY with your actual WireGuard private key
+# 1. Connect ether1 to ISP modem, ether2-5 to switch/PC
+# 2. Paste this script into Terminal (use /import for file-based install)
+# 3. Script is self-contained - no variable substitution issues
 
-:local wgPrivateKey "YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
-:local wgEndpoint "vpn.spidmax.win:51820"
-:local wgPublicKey "L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw="
-:local wgPsk "4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo="
-:local radiusIp "10.8.0.1"
-:local radiusSecret "radiussecret"
-:local keepalive 25
-
-# ── System identity ─────────────────────────────────────────────────────
 /system identity set name=mikrotik-isp
 
-:log info "=== Starting MikroTik Fresh Setup ==="
+:log info "=== MikroTik Fresh Setup Started ==="
 
-# ── WAN: DHCP client on ether1 ──────────────────────────────────────
-/ip dhcp-client
-add interface=ether1 disabled=no comment="WAN - ISP DHCP"
+# WAN: DHCP client
+/ip dhcp-client add interface=ether1 disabled=no comment="WAN ISP DHCP"
+:log info "WAN DHCP client added"
 
-:log info "WAN DHCP client added on ether1"
+# Bridge: combine LAN ports
+/interface bridge add name=bridge-lan protocol-mode=none
+/interface bridge port add interface=ether2 bridge=bridge-lan
+/interface bridge port add interface=ether3 bridge=bridge-lan
+/interface bridge port add interface=ether4 bridge=bridge-lan
+/interface bridge port add interface=ether5 bridge=bridge-lan
+:log info "Bridge created with ether2-5"
 
-# ── Bridge: combine LAN ports ─────────────────────────────────────────
-/interface bridge
-add name=bridge-lan protocol-mode=none
+# LAN IP
+/ip address add address=192.168.89.1/24 interface=bridge-lan comment="LAN bridge"
+:log info "LAN IP: 192.168.89.1"
 
-/interface bridge port
-add interface=ether2 bridge=bridge-lan
-add interface=ether3 bridge=bridge-lan
-add interface=ether4 bridge=bridge-lan
-add interface=ether5 bridge=bridge-lan
+# DHCP Pool
+/ip pool add name=dhcp-pool ranges=192.168.89.31-192.168.89.199
 
-:log info "Bridge created with ether2-ether5"
+# DHCP Server
+/ip dhcp-server add name=dhcp-lan interface=bridge-lan address-pool=dhcp-pool gateway=192.168.89.1 dns-server=192.168.89.1 comment="LAN DHCP"
+/ip dhcp-server network add address=192.168.89.0/24 gateway=192.168.89.1 dns-server=192.168.89.1
+:log info "DHCP server configured"
 
-# ── LAN IP (192.168.89.1 - avoids conflict with ISP modem at .88.1) ──
-/ip address
-add address=192.168.89.1/24 interface=bridge-lan comment="LAN bridge"
+# DNS
+/ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
+:log info "DNS configured"
 
-# ── DHCP Server for LAN clients ────────────────────────────────────────
-/ip pool
-add name=dhcp-pool ranges=192.168.89.31-192.168.89.199
-
-/ip dhcp-server
-add name=dhcp-lan interface=bridge-lan address-pool=dhcp-pool \
-    gateway=192.168.89.1 dns-server=192.168.89.1 boot-file-name="" \
-    comment="LAN DHCP"
-
-# Exclude gateway and DHCP server from dynamic leases
-/ip dhcp-server network
-add address=192.168.89.0/24 gateway=192.168.89.1 dns-server=192.168.89.1
-
-:log info "DHCP server configured on bridge-lan"
-
-# ── DNS: relay from upstream ISP modem ─────────────────────────────────
-/ip dns
-set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
-
-:log info "DNS set to ISP modem gateway"
-
-
-
-# ── NAT: masquerade LAN traffic going out WAN ─────────────────────────
-/ip firewall nat
-add chain=srcnat out-interface=ether1 action=masquerade comment="NAT - masquerade LAN traffic"
-
+# NAT masquerade
+/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade comment="NAT LAN to WAN"
 :log info "NAT masquerade enabled"
 
-# ── Basic firewall: allow established/related, drop invalid ────────────
-/ip firewall filter
-add chain=input action=accept connection-state=established,related comment="Allow established/related"
-add chain=input action=accept connection-state=new src-address=192.168.89.0/24 comment="Allow new from LAN"
-add chain=input action=accept connection-state=new dst-address=192.168.89.1 dst-port=80,443 protocol=tcp comment="Allow API portal access"
-add chain=forward action=accept connection-state=established,related comment="Allow forward established"
-add chain=forward action=accept connection-state=new in-interface=bridge-lan out-interface=ether1 comment="Allow LAN to WAN"
-add chain=input action=drop connection-state=invalid comment="Drop invalid"
-add chain=forward action=drop connection-state=invalid comment="Drop invalid forward"
+# Basic firewall - input
+/ip firewall filter add chain=input action=accept connection-state=established,related comment="Allow established/related"
+/ip firewall filter add chain=input action=accept connection-state=new src-address=192.168.89.0/24 comment="Allow new from LAN"
+/ip firewall filter add chain=input action=drop connection-state=invalid comment="Drop invalid input"
+# Basic firewall - forward
+/ip firewall filter add chain=forward action=accept connection-state=established,related comment="Allow forward established"
+/ip firewall filter add chain=forward action=accept connection-state=new in-interface=bridge-lan out-interface=ether1 comment="LAN to WAN forward"
+/ip firewall filter add chain=forward action=drop connection-state=invalid comment="Drop invalid forward"
+:log info "Basic firewall configured"
 
-:log info "Basic firewall rules added"
+# Allow DHCP and DNS input
+/ip firewall filter add chain=input action=accept protocol=udp dst-port=67-68 comment="Allow DHCP"
+/ip firewall filter add chain=input action=accept protocol=udp dst-port=53 comment="Allow DNS"
 
-# ══════════════════════════════════════════════════════════════════════
+# =====================================================================
 # ISP BILLING INTEGRATION
-# ══════════════════════════════════════════════════════════════════════
+# =====================================================================
+:log info "Configuring ISP Billing integration..."
 
-# ── WireGuard VPN ─────────────────────────────────────────────────────
-/interface wireguard
-add name=wg-vpn listen-port=51820 mtu=1420 private-key=$wgPrivateKey
-
-/interface wireguard peers
-add interface=wg-vpn public-key=$wgPublicKey preshared-key=$wgPsk \
-    endpoint-address=$wgEndpoint persistent-keepalive=$keepalive \
-    allowed-address=10.8.0.0/24
-
-/ip address
-add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard tunnel - RADIUS server"
-
+# WireGuard VPN
+/interface wireguard add name=wg-vpn listen-port=51820 mtu=1420 private-key="YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4="
+/interface wireguard peers add interface=wg-vpn public-key="L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw=" preshared-key="4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo=" endpoint-address="vpn.spidmax.win:51820" persistent-keepalive=25 allowed-address=10.8.0.0/24
+/ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard tunnel to RADIUS"
 :log info "WireGuard VPN configured"
 
-# ── RADIUS client ─────────────────────────────────────────────────────
-/radius
-add address=$radiusIp secret=$radiusSecret \
-    authentication-port=1812 accounting-port=1813 \
-    src-address=10.8.0.2 service=ppp,hotspot,login \
-    timeout=3s comment="ISP Billing RADIUS"
+# RADIUS client
+/radius add address=10.8.0.1 secret="radiussecret" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 service=ppp,hotspot,login timeout=3s comment="ISP Billing RADIUS"
+:log info "RADIUS client configured"
 
-:log info "RADIUS client configured -> $radiusIp"
-
-# ── Enable RADIUS for PPP ─────────────────────────────────────────────
-/ppp aaa
-set use-radius=yes accounting=yes interim-update=5m
-
+# RADIUS for PPP
+/ppp aaa set use-radius=yes accounting=yes interim-update=5m
 :log info "RADIUS enabled for PPP"
 
-# ── RADIUS incoming (CoA support) ────────────────────────────────────
-/radius incoming
-set accept=yes port=3799
+# RADIUS incoming (CoA support)
+/radius incoming set accept=yes port=3799
+:log info "RADIUS CoA enabled"
 
-:log info "RADIUS CoA enabled on port 3799"
-
-# ── IP pools for PPPoE and Hotspot ────────────────────────────────────
-/ip pool
-add name=hotspot-pool ranges=192.168.89.31-192.168.89.199
-add name=pppoe-pool ranges=192.168.89.200-192.168.89.250
-
+# IP pools for PPPoE and Hotspot
+/ip pool add name=hotspot-pool ranges=192.168.89.31-192.168.89.199
+/ip pool add name=pppoe-pool ranges=192.168.89.200-192.168.89.250
 :log info "IP pools created"
 
-# ── Hotspot server ─────────────────────────────────────────────────────
-/ip hotspot profile
-add name=hotspot-radius \
-    login-by=http-chap,http-pap \
-    use-radius=yes \
-    radius-accounting=yes \
-    hotspot-address=192.168.89.1 \
-    dns-name=login.spidmax.win \
-    comment="ISP Billing Hotspot"
+# Hotspot profile
+/ip hotspot profile add name=hotspot-radius login-by=http-chap,http-pap use-radius=yes radius-accounting=yes hotspot-address=192.168.89.1 dns-name=login.local comment="ISP Billing Hotspot"
+# Hotspot server
+/ip hotspot add name=hotspot1 interface=bridge-lan address-pool=hotspot-pool profile=hotspot-radius disabled=no
+:log info "Hotspot server configured"
 
-# Create hotspot on the LAN bridge
-/ip hotspot
-add name=hotspot1 interface=bridge-lan \
-    address-pool=hotspot-pool \
-    profile=hotspot-radius \
-    disabled=no
+# PPPoE profile
+/ppp profile add name=pppoe-radius local-address=192.168.89.1 remote-address-pool=pppoe-pool bridge=bridge-lan use-mpls=no use-compression=no use-encryption=no override-mtu=1492 comment="PPPoE ISP Billing"
+# PPPoE server
+/interface pppoe-server server add service-name=isp-pppoe interface=bridge-lan default-profile=pppoe-radius authentication=pap,chap one-session-per-host=yes
+:log info "PPPoE server configured"
 
-:log info "Hotspot server configured on bridge-lan"
+# Queue types for speed limiting
+/queue type add name=pcq-download kind=pcq pcq-rate=0 pcq-classifier=dst-address
+/queue type add name=pcq-upload kind=pcq pcq-rate=0 pcq-classifier=src-address
+:log info "Queue types created"
 
-# ── PPPoE server ───────────────────────────────────────────────────────
-/ppp profile
-add name=pppoe-radius \
-    local-address=192.168.89.1 \
-    remote-address-pool=pppoe-pool \
-    bridge=bridge-lan \
-    use-mpls=no \
-    use-compression=no \
-    use-encryption=no \
-    override-mtu=1492 \
-    comment="PPPoE - ISP Billing"
+# Firewall: allow RADIUS traffic
+/ip firewall filter add chain=output action=accept dst-address=10.8.0.1 protocol=udp dst-port=1812-1813 comment="Allow RADIUS to billing"
+/ip firewall filter add chain=input action=accept src-address=10.8.0.1 protocol=udp src-port=1812-1813 comment="Allow RADIUS from billing"
+:log info "RADIUS firewall rules added"
 
-/interface pppoe-server server
-add service-name=isp-pppoe \
-    interface=bridge-lan \
-    default-profile=pppoe-radius \
-    authentication=pap,chap \
-    one-session-per-host=yes
-
-:log info "PPPoE server enabled on bridge-lan"
-
-# ── Queue types for speed limiting ─────────────────────────────────────
-/queue type
-add name=pcq-download kind=pcq pcq-rate=0 pcq-classifier=dst-address
-add name=pcq-upload kind=pcq pcq-rate=0 pcq-classifier=src-address
-
-:log info "PCQ queue types created"
-
-# ── Firewall: allow RADIUS traffic from LAN/WireGuard to RADIUS server ─
-/ip firewall filter
-add chain=output action=accept \
-    dst-address=$radiusIp protocol=udp dst-port=1812-1813 \
-    comment="Allow RADIUS auth/acct to billing server"
-add chain=input action=accept \
-    src-address=$radiusIp protocol=udp src-port=1812-1813 \
-    comment="Allow RADIUS responses from billing server"
-
-:log info "Firewall rules for RADIUS added"
-
-# ── Allow DHCP and DNS traffic ────────────────────────────────────────
-/ip firewall filter
-add chain=input action=accept protocol=udp dst-port=67-68 comment="Allow DHCP"
-add chain=input action=accept protocol=udp dst-port=53 comment="Allow DNS"
-
-:log info "Firewall: DHCP+DNS allowed"
-
-# ══════════════════════════════════════════════════════════════════════
+# =====================================================================
 # SETUP COMPLETE
-# ══════════════════════════════════════════════════════════════════════
-
+# =====================================================================
 :log info "=== MikroTik Fresh Setup Complete ==="
-:log info "LAN network: 192.168.89.0/24 (gateway: 192.168.89.1)"
-:log info "Hotspot: login via http://192.168.89.1 or http://login.spidmax.win"
-:log info "PPPoE: service name 'isp-pppoe', auth against RADIUS"
-:log info "WireGuard: tunnel IP 10.8.0.2 -> RADIUS at 10.8.0.1"
+:log info "LAN: 192.168.89.0/24  |  Gateway: 192.168.89.1"
+:log info "Hotspot: http://192.168.89.1  |  PPPoE service: isp-pppoe"
+:log info "WireGuard: 10.8.0.2 -> 10.8.0.1 (RADIUS)"
 :log info ""
 :log info "NEXT STEPS:"
-:log info "1. Update RADIUS_ALLOWED_IPS on ISP billing API to include 10.8.0.0/24"
-:log info "2. Register this MikroTik NAS in the billing system admin panel"
-:log info "3. Create test customer + plan in ISP billing portal"
-:log info "4. Test PPPoE or Hotspot login with customer credentials"
+:log info "1. Set RADIUS_ALLOWED_IPS=10.8.0.0/24 on ISP billing API"
+:log info "2. Register MikroTik NAS in ISP billing admin panel"
+:log info "3. Create test customer and plan in ISP billing"
+:log info "4. Test Hotspot or PPPoE login with customer credentials"
