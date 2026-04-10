@@ -5,8 +5,10 @@ import type { MpesaCallback } from '../types';
 // Mock the dependencies at module level so they're isolated per test file
 vi.mock('../config/database', () => {
   const mockTx = {
+    $queryRaw: vi.fn(),
     payment: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       update: vi.fn(),
     },
     customer: {
@@ -82,7 +84,8 @@ describe('M-Pesa callback', () => {
     const dbModule = await import('../config/database');
     prismaMock = dbModule.prisma;
     txMock = {
-      payment: { findFirst: vi.fn(), update: vi.fn() },
+      $queryRaw: vi.fn(),
+      payment: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
       customer: { update: vi.fn() },
       invoice: { update: vi.fn() },
       subscription: { findUnique: vi.fn(), update: vi.fn() },
@@ -106,7 +109,8 @@ describe('M-Pesa callback', () => {
       metadata: {},
       customer: { userId: 'user-001' },
     };
-    txMock.payment.findFirst.mockResolvedValue(mockPayment);
+    txMock.$queryRaw.mockResolvedValue([mockPayment]);
+    txMock.payment.findUnique.mockResolvedValue({ ...mockPayment, customer: mockPayment.customer });
     txMock.payment.update.mockResolvedValue({});
     txMock.customer.update.mockResolvedValue({});
     txMock.invoice.update.mockResolvedValue({});
@@ -196,7 +200,8 @@ describe('M-Pesa callback', () => {
       metadata: {},
       customer: { userId: 'user-001' },
     };
-    txMock.payment.findFirst.mockResolvedValue(mockPayment);
+    txMock.$queryRaw.mockResolvedValue([mockPayment]);
+    txMock.payment.findUnique.mockResolvedValue({ ...mockPayment, customer: mockPayment.customer });
     txMock.payment.update.mockResolvedValue({});
     txMock.notification.create.mockResolvedValue({});
 

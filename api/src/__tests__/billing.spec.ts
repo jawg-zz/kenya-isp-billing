@@ -100,6 +100,14 @@ vi.mock('../services/sms.service', () => ({
   },
 }));
 
+vi.mock('../config/redis', () => ({
+  cache: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+  },
+}));
+
 // Import services after mocks
 import { invoiceService } from '../services/invoice.service';
 import { billingService } from '../services/billing.service';
@@ -219,12 +227,22 @@ describe('Late fee calculation', () => {
     const expectedLateFee = 2900 * 0.02 * 2; // 116
     expect(mockInvoiceUpdate).toHaveBeenCalledWith({
       where: { id: 'inv-overdue' },
-      data: {
-        totalAmount: 2900 + expectedLateFee,
+      data: expect.objectContaining({
+        subtotal: expectedLateFee,
+        taxAmount: expectedLateFee * 0.16,
+        totalAmount: expectedLateFee * 1.16,
         metadata: expect.objectContaining({
           lateFee: expect.objectContaining({ amount: expectedLateFee, weeksOverdue: 2 }),
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              description: expect.stringContaining('Late Fee'),
+              amount: expectedLateFee,
+              quantity: 1,
+              unitPrice: expectedLateFee,
+            }),
+          ]),
         }),
-      },
+      }),
     });
   });
 
@@ -240,8 +258,15 @@ describe('Late fee calculation', () => {
 
     await billingService.applyLateFees();
 
+    const expectedLateFee = 1000 * 0.02 * 2; // 40
     expect(mockInvoiceUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ totalAmount: 1040 }) })
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subtotal: expectedLateFee,
+          taxAmount: expectedLateFee * 0.16,
+          totalAmount: expectedLateFee * 1.16,
+        }),
+      })
     );
   });
 

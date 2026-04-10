@@ -2,7 +2,7 @@
 /interface wireguard add name=wg-vpn private-key="YAN9JhoH1Y/ps+5FaDXjUQC7KDOjA8n8hwu/f2moLk4=" listen-port=51820 mtu=1420
 /interface wireguard peers add interface=wg-vpn public-key="L8bc5vXPX2zQHzpmd+qHwA2HAMYTi0uzvwiYFeB+ekw=" endpoint-address="vpn.spidmax.win:51820" preshared-key="4Cntf94sI7Igv64iAWx2B77/qMc5FOyr1cYyZvTd+Qo=" persistent-keepalive=25s allowed-address=10.8.0.0/24
 /ip address add address=10.8.0.2/24 interface=wg-vpn comment="WireGuard to RADIUS server"
-/radius add address=10.8.0.1 secret="CHANGE_ME" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2
+/radius add address=10.8.0.1 secret="radiussecret" authentication-port=1812 accounting-port=1813 src-address=10.8.0.2
 /ppp aaa set use-radius=yes
 /ip pool add name=hotspot ranges=192.168.88.31-192.168.88.199
 /ip pool add name=pppoe ranges=192.168.88.200-192.168.88.250

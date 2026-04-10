@@ -141,7 +141,7 @@ describe('Auth middleware', () => {
     mockFindUnique.mockResolvedValue({ ...ACTIVE, accountStatus: 'SUSPENDED' });
 
     await authenticate(req, res, next);
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Account is suspended or terminated' }));
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Account is suspended, terminated, or not verified' }));
   });
 
   it('should reject token for terminated account', async () => {
@@ -150,6 +150,6 @@ describe('Auth middleware', () => {
     mockFindUnique.mockResolvedValue({ ...ACTIVE, accountStatus: 'TERMINATED' });
 
     await authenticate(req, res, next);
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Account is suspended or terminated' }));
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Account is suspended, terminated, or not verified' }));
   });
 });
