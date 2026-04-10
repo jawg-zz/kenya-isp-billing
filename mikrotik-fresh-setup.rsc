@@ -26,7 +26,7 @@
 /ip hotspot profile add name=hotspotradius login-by=http-chap,http-pap use-radius=yes radius-accounting=yes hotspot-address=192.168.89.1 dns-name=login.local
 /ip hotspot add name=hotspot1 interface=bridgelan address-pool=hotspotpool profile=hotspotradius disabled=no
 /ppp profile add name=pppoeradius local-address=192.168.89.1
-/interface pppoe-server add service=isp_pppoe interface=bridgelan default-profile=pppoeradius authentication=pap,chap
+/interface pppoe-server server add service-name=isp_pppoe interface=bridgelan default-profile=pppoeradius authentication=pap chap
 /radius add address=10.8.0.1 secret=radiussecret authentication-port=1812 accounting-port=1813 src-address=10.8.0.2 service=ppp,hotspot,login
 /ppp aaa set use-radius=yes accounting=yes interim-update=5m
 /radius incoming set accept=yes
