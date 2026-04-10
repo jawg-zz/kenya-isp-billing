@@ -1,127 +1,121 @@
 # ISP Billing System
 
-A full-stack ISP billing and customer management platform built for Kenyan ISPs. Supports M-Pesa and Airtel Money payments, RADIUS authentication, prepaid/postpaid plans, automated invoicing, usage tracking, and real-time notifications.
+A full-stack ISP billing and customer management platform built for Kenyan ISPs. Supports M-Pesa and Airtel Money payments, RADIUS authentication, prepaid/postpaid plans, automated invoicing, usage tracking, reporting, and real-time notifications.
+
+> **Current repo status (audited 2026-04-05):** broad feature coverage with passing API/frontend builds, partial failing API tests, and unverified production deployment.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | NestJS/Express + TypeScript |
+| **Backend** | Express + TypeScript |
 | **Frontend** | Next.js 14 (App Router) + React 18 + TailwindCSS |
 | **Database** | PostgreSQL 16 via Prisma ORM |
-| **Cache** | Redis 7 (sessions, rate limiting, settings) |
+| **Cache** | Redis 7 |
 | **Auth** | JWT (access + refresh token rotation) |
 | **Payments** | M-Pesa Daraja API (STK Push) + Airtel Money |
 | **SMS** | Africa's Talking |
 | **Email** | Nodemailer (SMTP) |
 | **Network** | RADIUS (RFC 2865) + CoA |
-| **PDF** | pdfkit (invoices, reports) |
+| **PDF** | pdfkit |
 | **Charts** | Recharts |
-| **Deploy** | Docker Compose |
+| **Deploy** | Docker Compose / Dokploy |
 
-## Features
+## What’s in the Repo
 
-### Customer Portal
-- **Dashboard** — Account overview, active plan, balance, alerts
-- **Subscribe** — Browse plans, select billing cycle, pay via M-Pesa/Airtel
-- **Usage** — Real-time data consumption, session history, FUP status
-- **Invoices** — View, filter, download PDF, pay outstanding
-- **Payments** — Payment history, M-Pesa STK push, Airtel Money
-- **Notifications** — Real-time SSE notifications, notification center
-- **Profile** — Personal info, password, email/phone verification
+### Customer-facing flows
+- Dashboard
+- Plan browsing and subscription
+- Usage tracking
+- Invoice list and invoice detail
+- Payment history and payment initiation
+- Notifications
+- Profile management
+- Login / register / forgot password / reset password / verify email
 
-### Admin Dashboard
-- **Overview** — KPIs: revenue, customers, overdue invoices, activity feed
-- **Customers** — CRUD, search, suspend/activate, balance adjustment, edit
-- **Plans** — Create/edit/deactivate plans with multi-cycle pricing
-- **Subscriptions** — Table view, search, filter, suspend/activate/cancel
-- **Invoices** — All invoices, batch generation, PDF download, status updates
-- **Payments** — Full payment history, manual recording
-- **Reports** — Customer, usage, and payment analytics with charts + CSV/PDF export
-- **Network** — Active RADIUS sessions, session management
-- **Settings** — Company, payment, billing, branding, operations, API/RADIUS config
-- **Audit Log** — Admin action tracking with old/new values
+### Admin flows
+- Customers
+- Plans
+- Subscriptions
+- Invoices
+- Payments
+- Reports
+- Revenue
+- Network / RADIUS views
+- Settings
+- Audit logs
 
-### Payment Integration
-- **M-Pesa** — STK Push with automatic callback processing, idempotency
-- **Airtel Money** — Push payment with IP allowlist + token validation
-- **Cash/Bank** — Manual recording by admin
+### Backend capabilities
+- Auth and role-based access control
+- Billing and invoice generation
+- M-Pesa and Airtel callbacks
+- RADIUS integration and session handling
+- Usage tracking
+- Reporting with CSV/PDF export
+- Notification SSE stream
+- Health, readiness, liveness, and metrics endpoints
+- Request tracing with `X-Request-ID`
+- Redis-backed rate limiting with graceful fallback
+- Hotspot purchase backend routes
 
-### Network Integration (RADIUS)
-- **Authentication** — PPPoE and Hotspot support
-- **Session Tracking** — Active sessions, bandwidth, data usage
-- **CoA (RFC 2865)** — Dynamic speed changes, disconnect, re-enable
-- **Auto-provisioning** — Service activate/deactivate on payment events
-- **Fair Usage Policy** — Threshold-based speed reduction
+## Verified Status
 
-### Automated Billing
-- **Invoice Generation** — Daily at 01:00 AM (cron)
-- **Late Fees** — Daily at 01:30 AM (cron)
-- **Auto-Suspension** — Daily at 02:00 AM for overdue accounts (cron)
-- **Usage Reset** — Daily at midnight (cron)
+The following was verified during the 2026-04-05 audit:
 
-## Prerequisites
+- `api/` build passes
+- `frontend/` production build passes
+- API test suite exists and runs
+- API tests are **not fully green yet**
+- Repo had no pending code changes before documentation cleanup
 
-- Docker & Docker Compose
-- Node.js 20+ (for local development only)
+If you want the exact current status, read:
 
-## Quick Start (Docker Compose)
+- **[PROGRESS.md](./PROGRESS.md)** — audited repo status tracker
+- **[REVIEW.md](./REVIEW.md)** — updated review snapshot
 
-### 1. Clone and Configure
+## Quick Start (Local / Docker Compose)
+
+### 1. Clone and configure
 
 ```bash
 git clone <your-repo-url>
 cd isp-billing-system
-
-# Create .env file with your secrets
-cp .env.example .env
+cp .env.production.example .env
 ```
 
-Edit `.env` with your values:
+Then edit `.env` for your environment.
 
-```env
-# REQUIRED — Generate with: openssl rand -base64 48
-POSTGRES_PASSWORD=your_strong_db_password
-JWT_SECRET=your_64_char_random_string
-JWT_REFRESH_SECRET=another_64_char_random_string
-RADIUS_SECRET=your_radius_secret
-
-# REQUIRED for production
-CORS_ORIGIN=https://isp.yourdomain.com
-
-# Optional — payments, SMS, email (features won't work without these)
-MPESA_CONSUMER_KEY=
-MPESA_CONSUMER_SECRET=
-MPESA_PASSKEY=
-MPESA_SHORTCODE=
-MPESA_ENVIRONMENT=production
-AT_API_KEY=
-AT_USERNAME=
-SMTP_HOST=
-SMTP_USER=
-SMTP_PASS=
-```
-
-### 2. Start All Services
+### 2. Start services
 
 ```bash
 docker compose up -d
 ```
 
-This starts 4 containers:
-- `isp_billing_postgres` — PostgreSQL database
-- `isp_billing_redis` — Redis cache
-- `isp_billing_api` — Backend API (port 3000 internally)
-- `isp_billing_frontend` — Next.js frontend (port 3000 internally)
+Current compose services:
+- `postgres`
+- `redis`
+- `api`
+- `freeradius`
+- `frontend`
 
-### 3. Run Migrations & Seed
+### 3. Database setup
+
+The current API container entrypoint uses **Prisma db push**, not tracked migration files.
+
+For local/manual setup, use the repo’s current approach:
 
 ```bash
-# Apply database migrations
-docker compose exec api npx prisma migrate deploy
+cd api
+npx prisma db push
+node dist/utils/seed.js
+```
 
-# Seed default data (admin user, plans, settings)
-docker compose exec api npx prisma db seed
+If you are running from source instead of built output:
+
+```bash
+cd api
+npx prisma db push
+npx tsx src/utils/seed.ts
 ```
 
 ### 4. Access
@@ -130,317 +124,125 @@ docker compose exec api npx prisma db seed
 |---------|-----|
 | **Frontend** | `http://your-server` |
 | **API** | `http://your-server/api/v1` |
-| **Swagger Docs** | `http://your-server/api/docs` |
-| **Health Check** | `http://your-server/health` |
-
-## Default Accounts (after seeding)
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@isp-kenya.co.ke` | `Admin@123456` |
-| Customer | (created via seed) | `Customer@123` |
-
-⚠️ **Change these passwords immediately after first login.**
+| **Health** | `http://your-server/health` |
+| **Readiness** | `http://your-server/health/ready` |
+| **Liveness** | `http://your-server/health/live` |
+| **Swagger (non-production only)** | `http://your-server/api/docs` |
 
 ## Local Development
 
-### Setup
+### API
 
 ```bash
-# Start only database services
+cd api
+npm install
+npm run build
+npm run dev
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run dev
+```
+
+### Database services only
+
+```bash
 docker compose up -d postgres redis
-
-# Install dependencies
-cd api && npm install
-cd ../frontend && npm install
-
-# Run migrations
-cd api && npx prisma migrate dev
-
-# Start dev servers
-# Terminal 1 — API
-cd api && npm run dev      # http://localhost:3001
-
-# Terminal 2 — Frontend
-cd frontend && npm run dev # http://localhost:3000
 ```
 
-### Environment (Local)
+## Production Deployment Notes
 
-```env
-NODE_ENV=development
-DATABASE_URL=postgresql://isp_billing:isp_billing_password@localhost:5432/isp_billing
-REDIS_URL=redis://localhost:6379
-CORS_ORIGIN=http://localhost:3000
-```
+This repo is designed to be deployable with Dokploy, but this audit did **not** verify a live production deployment.
 
-## Production Deployment (Dokploy)
+### Use with care
 
-This project is designed for [Dokploy](https://dokploy.com) deployment.
+- Set strong real secrets
+- Do **not** keep demo/default credentials
+- Verify all payment callback URLs
+- Verify RADIUS shared secrets and NAS settings
+- Run smoke tests after deployment
 
-### Setup
+### Important reality check
 
-1. **Push to GitHub** (already done: `github.com/jawg-zz/kenya-isp-billing`)
-2. **Create Dokploy project** pointing to the repo
-3. **Add environment variables** in Dokploy UI (see `.env.production.example`):
-   - `POSTGRES_PASSWORD` — strong DB password
-   - `JWT_SECRET` — 48+ char random string
-   - `JWT_REFRESH_SECRET` — 48+ char random string
-   - `RADIUS_SECRET` — random hex string
-   - `CORS_ORIGIN` — your production domain
-   - Payment/SMS/SMTP credentials as needed
-4. **Deploy** — Dokploy builds and starts via `docker-compose.yml`
-
-### Required Env Vars for Production
-
-| Variable | Required | Notes |
-|----------|----------|-------|
-| `POSTGRES_PASSWORD` | ✅ | Database password |
-| `JWT_SECRET` | ✅ | 48+ characters |
-| `JWT_REFRESH_SECRET` | ✅ | 48+ characters |
-| `RADIUS_SECRET` | ✅ | Shared RADIUS secret |
-| `CORS_ORIGIN` | ✅ | Production domain |
-| `NODE_ENV` | ✅ | Auto-set to `production` |
-| `MPESA_*` | ⚠️ | Required for M-Pesa payments |
-| `AIRTEL_*` | ⚠️ | Required for Airtel payments |
-| `AT_*` | ⚠️ | Required for SMS |
-| `SMTP_*` | ⚠️ | Required for emails |
-
-### Generate Secrets
+The repo currently does **not** include Prisma migration files. The live container entrypoint runs:
 
 ```bash
-openssl rand -base64 48   # JWT_SECRET, JWT_REFRESH_SECRET
-openssl rand -hex 16      # RADIUS_SECRET, POSTGRES_PASSWORD
+npx prisma db push --accept-data-loss --skip-generate
 ```
 
-## API Documentation
+So older instructions that said “run Prisma migrations” were stale for the current state of the repo.
 
-Full Swagger docs available at `/api/docs` when running. Major endpoints:
+## Environment Files Present
 
-| Category | Endpoints |
-|----------|-----------|
-| **Auth** | Register, login, refresh token, verify email/phone, password reset |
-| **Plans** | CRUD, multi-cycle pricing, featured plans |
-| **Subscriptions** | Subscribe, renew, cancel, admin manage |
-| **Invoices** | List, detail, PDF download, batch generate, admin management |
-| **Payments** | M-Pesa STK push, Airtel Money, manual recording, history |
-| **Customers** | CRUD, search, filter, balance adjustment, stats |
-| **Usage** | Summary, realtime, history, session tracking |
-| **Reports** | Customer trends, usage analytics, payment reports, CSV/PDF export |
-| **Notifications** | In-app, SSE stream, read/unread |
-| **Settings** | Get/update system settings (6 categories) |
-| **RADIUS** | Session list, config management |
-| **Audit** | Admin action log |
+- `.env.production.example`
+- `api/.env.example`
+- `frontend/.env.example`
+- `frontend/.env.local.example`
 
-## Project Structure
+## API / Feature Notes
 
-```
-isp-billing-system/
-├── .env.production.example    # Production env reference
-├── PRD.md                     # Product requirements document
-├── PROGRESS.md                # Development progress tracker
-├── docker-compose.yml         # All services definition
-├── api/                       # Backend
-│   ├── src/
-│   │   ├── config/           # Database, Redis, app config
-│   │   ├── controllers/      # Route handlers
-│   │   ├── middleware/        # Auth, validation, rate limiting, audit
-│   │   ├── routes/           # Express routes (20+ route files)
-│   │   ├── services/         # Business logic (billing, M-Pesa, RADIUS, etc.)
-│   │   ├── validators/       # Zod validation schemas
-│   │   ├── workers/          # Cron workers (invoice, suspend, fees, usage)
-│   │   ├── templates/        # PDF templates (invoice, reports)
-│   │   └── server.ts         # Entry point
-│   ├── prisma/
-│   │   ├── schema.prisma     # 14 models, full relations
-│   │   └── seed.ts           # Default data
-│   ├── __tests__/            # Test suites
-│   └── Dockerfile
-├── frontend/                  # Next.js frontend
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── (auth)/      # Login, register, forgot/reset password, verify
-│   │   │   ├── (admin)/     # Dashboard, customers, plans, invoices, subscriptions, reports, settings
-│   │   │   ├── (customer)/  # Dashboard, subscribe, usage, invoices, payments, profile
-│   │   │   └── notifications/
-│   │   ├── components/
-│   │   │   ├── ui/          # Input, Button, Card, Table, Badge, etc.
-│   │   │   ├── layout/      # Sidebar, navigation
-│   │   │   ├── charts/      # Revenue, analytics charts
-│   │   │   └── widgets/     # Stat cards, activity feed
-│   │   └── lib/
-│   │       ├── api.ts       # API client
-│   │       ├── auth.tsx     # Auth context + provider
-│   │       ├── validation.ts # Form validation utils
-│   │       ├── api-errors.ts # Error handling
-│   │       └── hooks/       # useFormValidation, useNotificationSSE
-│   └── Dockerfile
-└── README.md
-```
+### Reports
+Customer, usage, and payment reports exist with CSV and PDF export paths.
 
-## RADIUS / MikroTik Integration
+### Health endpoints
+- `/health`
+- `/health/detailed` (non-production)
+- `/health/ready`
+- `/health/live`
 
-### Architecture
+### Hotspot support
+The backend includes hotspot package purchase routes and a `HotspotPurchase` model. This README does not claim a complete dedicated frontend hotspot flow without further UI validation.
 
-```
-┌──────────────────┐     WireGuard VPN      ┌─────────────────────┐
-│   MikroTik AP    │◄──── 10.8.0.2 ─────────►│  FreeRADIUS Server  │
-│  (192.168.88.x)  │     UDP 1812/1813       │  (10.8.0.1)         │
-│                  │                          │  Docker container   │
-│  WiFi Clients    │   Hotspot login page     │                     │
-│  ──────────►     │   ────► RADIUS Auth      │  PostgreSQL         │
-│  PPPoE Clients   │   ────► RADIUS Auth      │  (radcheck/radreply)│
-└──────────────────┘                          └─────────────────────┘
-```
+## RADIUS / MikroTik
 
-### How It Works
+The repo includes:
 
-1. **Customer connects** to WiFi → MikroTik presents a hotspot login page
-2. **Credentials sent** to FreeRADIUS via WireGuard VPN (encrypted tunnel)
-3. **FreeRADIUS checks** PostgreSQL for username/password and reply attributes
-4. **Speed limits returned** — MikroTik applies `Mikrotik-Rate-Limit` per user
-5. **Accounting data** flows back to FreeRADIUS (session time, bytes transferred)
-6. **CoA (Change of Authorization)** can dynamically adjust speeds or disconnect users
+- `freeradius/` configuration and Docker setup
+- MikroTik scripts:
+  - `mikrotik-radius-setup.rsc`
+  - `mikrotik-radius-modify.rsc`
+- `radius-users-seed.sql`
 
-### Setup Steps
+Use these with real shared secrets and production-safe NAS/IP configuration.
 
-#### Step 1: Configure the Shared Secret
+## Data Model
 
-In your `.env` file:
+The current Prisma schema defines **16 models**:
 
-```bash
-# Generate a strong secret
-openssl rand -hex 24
-
-# Add to .env
-RADIUS_SECRET=41b939a9b9971242939f6532df7302d06adfd474de69bd0f
-```
-
-#### Step 2: Update clients.conf
-
-The `freeradius/clients.conf` file already includes the MikroTik VPN peer (`10.8.0.2`) and the WireGuard subnet (`10.8.0.0/24`). The secret uses the `${RADIUS_SECRET}` env var — just make sure it matches your `.env`.
-
-#### Step 3: Start FreeRADIUS
-
-```bash
-docker compose up -d freeradius
-```
-
-The entrypoint script auto-creates all RADIUS tables (`radcheck`, `radreply`, `radgroupcheck`, `radgroupreply`, `radusergroup`, `radacct`, `radpostauth`) on first startup.
-
-#### Step 4: Add Test Users
-
-```bash
-# Option A: Run the seed SQL file
-docker compose exec postgres psql -U isp_billing -d isp_billing < radius-users-seed.sql
-
-# Option B: Individual INSERT
-docker compose exec postgres psql -U isp_billing -d isp_billing -c \
-  "INSERT INTO radcheck (username, attribute, op, value) VALUES ('demo', 'Cleartext-Password', ':=', 'demo123');
-   INSERT INTO radusergroup (username, groupname) VALUES ('demo', 'basic');"
-```
-
-#### Step 5: Configure the MikroTik Router
-
-SSH into the MikroTik and paste the contents of `mikrotik-radius-setup.rsc`:
-
-```
-# From your terminal:
-ssh admin@192.168.88.1
-# Then paste the script (update the shared secret first!)
-```
-
-Replace `CHANGE_THIS_TO_MATCH_YOUR_RADIUS_SECRET` with your actual `RADIUS_SECRET` value.
-
-#### Step 6: Test
-
-```bash
-# On the MikroTik terminal:
-/radius test username=testuser_basic password=Basic@2024! server=10.8.0.1
-
-# Should return: Access-Accept with Mikrotik-Rate-Limit=5M/2M
-```
-
-Connect a device to the WiFi network — you should see the hotspot login page.
-
-### Speed Plans
-
-| Plan | Download | Upload | Session Limit | Idle Timeout |
-|------|----------|--------|---------------|--------------|
-| **Basic** | 5 Mbps | 2 Mbps | 24 hours | 10 min |
-| **Premium** | 20 Mbps | 10 Mbps | 24 hours | 10 min |
-| **Enterprise** | 50 Mbps | 25 Mbps | Unlimited | 30 min |
-
-### RADIUS Attributes Used
-
-| Attribute | Purpose |
-|-----------|---------|
-| `Cleartext-Password` | User password (radcheck) |
-| `Mikrotik-Rate-Limit` | Per-user speed limit (`down/up` format) |
-| `Session-Timeout` | Max session duration (seconds) |
-| `Idle-Timeout` | Disconnect after inactivity (seconds) |
-| `WISPr-Bandwidth-Max-Down` | Hotspot portal display (bps) |
-| `WISPr-Bandwidth-Max-Up` | Hotspot portal display (bps) |
-
-### Accounting
-
-Session data is stored in the `radacct` table automatically. Key fields:
-
-- `username` — authenticated user
-- `nasipaddress` — MikroTik router IP
-- `acctsessiontime` — total session duration (seconds)
-- `acctinputoctets` / `acctoutputoctets` — bytes uploaded/downloaded
-- `framedipaddress` — IP assigned to the user
-- `acctterminatecause` — why the session ended (User-Request, Timeout, etc.)
-
-### CoA (Change of Authorization)
-
-FreeRADIUS can send CoA packets to the MikroTik to:
-
-- **Change speed** mid-session (upgrade/downgrade)
-- **Disconnect** a user immediately (suspend)
-- **Re-authorize** after payment (activate)
-
-Port **3799/udp** is already exposed in `docker-compose.yml` for CoA.
-
-### Files
-
-| File | Purpose |
-|------|---------|
-| `freeradius/clients.conf` | NAS client definitions (MikroTik, WireGuard subnet) |
-| `freeradius/scripts/entrypoint.sh` | Auto-creates RADIUS tables on startup |
-| `radius-users-seed.sql` | Test users with speed plans |
-| `mikrotik-radius-setup.rsc` | MikroTik configuration script (paste into terminal) |
-
-### Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| "No response from server" | Check WireGuard: `/interface wireguard peers print` |
-| "Authentication failed" | Verify shared secret matches on both sides |
-| No speed limits applied | Check `radreply`/`radgroupreply` has `Mikrotik-Rate-Limit` |
-| Hotspot page not showing | Verify hotspot profile and interface assignment |
-| CoA not working | Ensure port 3799/udp is open on the server firewall |
-
-## Database Schema
-
-14 models covering the full system: `User`, `Customer`, `Plan`, `PlanPrice`, `Subscription`, `Invoice`, `Payment`, `RadiusConfig`, `RadiusSession`, `UsageRecord`, `Notification`, `SystemSetting`, `AuditLog`, `RefreshToken`.
-
-See `api/prisma/schema.prisma` for the complete schema.
+- `User`
+- `RefreshToken`
+- `Customer`
+- `Plan`
+- `PlanPrice`
+- `Subscription`
+- `Invoice`
+- `Payment`
+- `RadiusConfig`
+- `Nas`
+- `RadiusSession`
+- `UsageRecord`
+- `Notification`
+- `SystemSetting`
+- `AuditLog`
+- `HotspotPurchase`
 
 ## Documentation
 
-- **[PRD.md](./PRD.md)** — Full product requirements (17 sections)
-- **[PROGRESS.md](./PROGRESS.md)** — Development progress tracker (90% complete)
-- **Swagger** — Interactive API docs at `/api/docs`
+- **[PRD.md](./PRD.md)** — product requirements / intended scope
+- **[PROGRESS.md](./PROGRESS.md)** — audited current repo status
+- **[REVIEW.md](./REVIEW.md)** — updated repo review snapshot
 
 ## Currency & Localization
 
-- Default currency: **KES** (Kenyan Shillings)
-- Tax rate: **16% VAT** (Kenya Revenue Authority standard)
+- Default currency: **KES**
+- Tax rate: **16% VAT**
 - Timezone: **Africa/Nairobi (EAT, UTC+3)**
-- Counties: All 47 Kenyan counties supported
-- Phone format: `+254XXXXXXXXX` (normalized automatically)
+- Phone format: `+254XXXXXXXXX`
 
 ## License
 
